@@ -16,7 +16,11 @@ import { GLTFAssetLoader } from "../../engine/AssetImporter/GLTFAssetLoader.js";
 import { SceneInteractionHandler } from "../../engine/EventManager/SceneInteractionHandler.js";
 import { GLTFSceneExporter } from "../../engine/AssetImporter/GLTFSceneExporter.js";
 import { createProgram } from "../../engine/RenderingPipeline/Webgl/ShaderProgramLinker.js";
-import { PointLightvsSource, PointLightfsSource } from "../../engine/RenderingPipeline/Shaders/GLSLShaderLibrary.js";
+import {
+  PointLightvsSource, PointLightfsSource,
+  SpotLightvsSource, SpotLightfsSource,
+  DirLightvsSource, DirLightfsSource
+} from "../../engine/RenderingPipeline/Shaders/GLSLShaderLibrary.js";
 
 
 // Initialize canvas and WebGL
@@ -82,16 +86,17 @@ scene.add(cube);
 
 // Initialize light system
 let program: any = null;
+// Set up light shader programs
+const pointProgram = createProgram(gl, PointLightvsSource as string, PointLightfsSource as string);
+const spotProgram = createProgram(gl, SpotLightvsSource as string, SpotLightfsSource as string);
+const dirProgram = createProgram(gl, DirLightvsSource as string, DirLightfsSource as string);
+
 // Create a master light instance that will hold all lights
-const masterLight = new SceneLightingManager(gl, program);
+const masterLight = new SceneLightingManager(gl, pointProgram);
 masterLight.lightType = "point";
 
-// Set up light shader program
-program = createProgram(
-  gl,
-  PointLightvsSource as string,
-  PointLightfsSource as string
-);
+// Current active program starts with point light
+program = pointProgram;
 gl.useProgram(program);
 
 // Set base light properties
@@ -103,7 +108,7 @@ masterLight.BaseLight({
 
 // Add default point light
 masterLight.PointLight({
-  lightPosition: [3.0, 0.0, 3.0],
+  lightPosition: [0.0, 0.0, 3.0],
   radius: 2.0,
   lightColor: [1.0, 1.0, 1.0],
   intensity: 2.0,
@@ -294,6 +299,20 @@ uiManager.onObjectSelect((uuid: string) => {
     previousSelectedUUID = uuid; // Use the passed UUID directly
     updateObjectProperties(foundObject);
 
+    // Dynamic Shader Switching based on selected object
+    if (foundObject.lightType === "point") {
+      program = pointProgram;
+    } else if (foundObject.lightType === "spot") {
+      program = spotProgram;
+    } else if (foundObject.lightType === "directional") {
+      program = dirProgram;
+    } else {
+      // For meshes or other objects, default to point light or some standard shader
+      // Since the user is using specialized shaders, we'll keep the last light shader or point light
+      if (!program) program = pointProgram;
+    }
+    gl.useProgram(program);
+
     // If it's a mesh, select it in the scene
     if (foundObject instanceof RenderableMeshObject) {
       events.selectedObject = foundObject;
@@ -482,9 +501,9 @@ function updateObjectProperties(obj: any) {
     const cameraPanel = document.getElementById("camera-properties-panel");
     if (cameraPanel) cameraPanel.style.display = "block";
     (document.getElementById("camera-type") as HTMLElement).textContent = "Perspective";
-    (document.getElementById("camera-pos-x") as HTMLInputElement).value = camera.eye.x.toFixed(2);
-    (document.getElementById("camera-pos-y") as HTMLInputElement).value = camera.eye.y.toFixed(2);
-    (document.getElementById("camera-pos-z") as HTMLInputElement).value = camera.eye.z.toFixed(2);
+    (document.getElementById("camera-pos-x") as HTMLInputElement).value = isNaN(camera.eye.x) ? "0.00" : camera.eye.x.toFixed(2);
+    (document.getElementById("camera-pos-y") as HTMLInputElement).value = isNaN(camera.eye.y) ? "0.00" : camera.eye.y.toFixed(2);
+    (document.getElementById("camera-pos-z") as HTMLInputElement).value = isNaN(camera.eye.z) ? "0.00" : camera.eye.z.toFixed(2);
   } else {
     const cameraPanel = document.getElementById("camera-properties-panel");
     if (cameraPanel) cameraPanel.style.display = "none";
@@ -562,6 +581,36 @@ uiManager.onTransformChange((transform: any) => {
         camera.eye.z = transform.position.z;
         camera.OrbitCamera();
       }
+    }
+  }
+});
+
+// Handle texture library selection
+uiManager.onTextureSelect(async (type, url) => {
+  if (selectedObject && selectedObject instanceof RenderableMeshObject) {
+    try {
+      if (url === "") {
+        if (type === "texture") {
+          selectedObject.texture = null;
+          selectedObject.textureURL = null;
+        } else {
+          selectedObject.normalMap = null;
+          selectedObject.normalMapURL = null;
+        }
+      } else {
+        const textureData = await Texture.loadTextureAsync(url);
+        if (type === "texture") {
+          selectedObject.texture = textureData.texture;
+          selectedObject.textureURL = textureData.base64Image;
+        } else {
+          selectedObject.normalMap = textureData.texture;
+          selectedObject.normalMapURL = textureData.base64Image;
+        }
+      }
+      // Force update
+      selectedObject.geometryNeedsUpdate = true;
+    } catch (error) {
+      console.error(`Error handling unit library ${type}:`, error);
     }
   }
 });
@@ -663,15 +712,17 @@ uiManager.onAddObject((type: string, subtype: string) => {
           lightColor: [1.0, 1.0, 1.0],
           intensity: 1.0,
         });
+        program = pointProgram;
         break;
       case "spot":
         masterLight.SpotLight({
-          lightPosition: [0.0, 3.0, 0.0],
+          lightPosition: [0.0, 0.0, 2.0],
           spotLightDirection: [0.0, 0.0, -1.0],
           spotLightAngle: Math.PI / 5,
           lightColor: [1.0, 1.0, 1.0],
           intensity: 1.0,
         });
+        program = spotProgram;
         break;
       case "directional":
         masterLight.DirectionalLight({
@@ -679,8 +730,10 @@ uiManager.onAddObject((type: string, subtype: string) => {
           lightColor: [1.0, 1.0, 1.0],
           intensity: 1.0,
         });
+        program = dirProgram;
         break;
     }
+    gl.useProgram(program);
     updateSceneGraph();
   } else if (type === "camera") {
     // Camera is already created, just update type if needed

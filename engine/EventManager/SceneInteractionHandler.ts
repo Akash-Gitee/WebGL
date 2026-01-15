@@ -6,7 +6,7 @@ import { GLTFSceneExporter } from "../AssetImporter/GLTFSceneExporter.js";
 import { WebGLRenderEngine } from "../RenderingPipeline/Webgl/WebGLRenderEngine.js";
 import { SceneHierarchyManager } from "../SceneGraph/SceneHierarchyManager.js";
 
-const camera = new CameraController();
+
 
 type Vec3 = number[] | Float32Array;
 
@@ -112,14 +112,22 @@ export class SceneInteractionHandler {
     this.webgl = new WebGLRenderEngine(this.canvas);
     this.gizmo = new TransformGizmoController();
     this.webgl.setGizmo(this.gizmo);
-    this.cameraRadiuscam = 0;
-    this.scalervalue = 10;
-    this.rotationX = 0;
-    this.rotationY = 0;
     this.prevMouseX = 0;
     this.prevMouseY = 0;
     this.sensitivity = 0.2;
     this.objectSensitivity = 0.01;
+
+    // Initialize orbit parameters from camera eye
+    this.cameraRadiuscam = Math.sqrt(
+      camera.eye.x * camera.eye.x +
+      camera.eye.y * camera.eye.y +
+      camera.eye.z * camera.eye.z
+    );
+    this.scalervalue = this.cameraRadiuscam;
+    this.rotationX = (Math.atan2(camera.eye.x, camera.eye.z) * (180 / Math.PI)) / this.sensitivity;
+    const horizDist = Math.sqrt(camera.eye.x * camera.eye.x + camera.eye.z * camera.eye.z);
+    this.rotationY = (Math.atan2(camera.eye.y, horizDist) * (180 / Math.PI)) / this.sensitivity;
+
     this.mouseX = 0;
     this.mouseY = 0;
     this.move = false;
@@ -325,7 +333,7 @@ export class SceneInteractionHandler {
     }
   }
   events(): void {
-    this.initializeInputBindings(camera, "Persp");
+    this.initializeInputBindings(this.camera, "Persp");
     this.rayEvents();
     this.keyboardEvents();
     this.canvas.addEventListener("wheel", (event: WheelEvent) => {
@@ -334,8 +342,8 @@ export class SceneInteractionHandler {
       this.scalervalue = Math.min(Math.max(-50, this.scalervalue), 1e5);
       this.cameraRadiuscam = this.scalervalue;
       const pos = this.controlEvent();
-      camera.eye = { x: pos[0], y: pos[1], z: pos[2] };
-      camera.OrbitCamera();
+      this.camera.eye = { x: pos[0], y: pos[1], z: pos[2] };
+      this.camera.OrbitCamera();
     });
     this.canvas.addEventListener("pointerdown", (e: PointerEvent) => {
       this.move = true;
@@ -376,8 +384,8 @@ export class SceneInteractionHandler {
         this.rotationX += e.movementX * 0.5;
         this.rotationY += e.movementY * 0.5;
         const pos = this.controlEvent();
-        camera.eye = { x: pos[0], y: pos[1], z: pos[2] };
-        camera.OrbitCamera();
+        this.camera.eye = { x: pos[0], y: pos[1], z: pos[2] };
+        this.camera.OrbitCamera();
       }
     });
     this.canvas.addEventListener("pointerup", () => {

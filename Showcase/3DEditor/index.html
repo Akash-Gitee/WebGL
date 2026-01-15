@@ -169,6 +169,79 @@
     .property-input input {
       width: 100%;
     }
+
+    /* Texture Library Styles */
+    .texture-library-container {
+      margin-top: var(--spacing-sm);
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+      gap: var(--spacing-xs);
+      max-height: 150px;
+      overflow-y: auto;
+      padding: var(--spacing-xs);
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-sm);
+    }
+
+    .texture-item {
+      aspect-ratio: 1/1;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-xs);
+      cursor: pointer;
+      overflow: hidden;
+      transition: all var(--transition-fast);
+      position: relative;
+    }
+
+    .texture-item:hover {
+      border-color: var(--accent-primary);
+      transform: scale(0.95);
+    }
+
+    .texture-item.active {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 2px var(--accent-primary);
+    }
+
+    .texture-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .texture-item-label {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      font-size: 8px;
+      padding: 2px;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .none-item {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+    }
+
+    .none-icon {
+      font-size: 24px;
+      font-weight: bold;
+      opacity: 0.5;
+    }
+
+    .none-item:hover .none-icon {
+      opacity: 1;
+      color: var(--accent-primary);
+    }
   </style>
 </head>
 
@@ -382,13 +455,24 @@
         <div class="panel-content">
           <div class="property-row">
             <span class="property-label">Texture</span>
-            <button class="btn" id="load-texture-btn">Load</button>
+            <button class="btn" id="load-texture-btn">Upload</button>
             <input type="file" id="texture-file-input" accept="image/*" style="display: none;" />
           </div>
-          <div class="property-row">
+          <!-- Texture Library -->
+          <div class="input-label" style="margin-top: 8px;">Texture Library</div>
+          <div class="texture-library-container" id="texture-library">
+            <!-- Items injected by EditorUIController -->
+          </div>
+
+          <div class="property-row" style="margin-top: 16px;">
             <span class="property-label">Normal Map</span>
-            <button class="btn" id="load-normal-btn">Load</button>
+            <button class="btn" id="load-normal-btn">Upload</button>
             <input type="file" id="normal-file-input" accept="image/*" style="display: none;" />
+          </div>
+          <!-- Normal Map Library -->
+          <div class="input-label" style="margin-top: 8px;">Normal Library</div>
+          <div class="texture-library-container" id="normal-library">
+            <!-- Items injected by EditorUIController -->
           </div>
         </div>
       </div>

@@ -29,6 +29,7 @@ export class EditorUIController {
     private onToolChangeCallback?: (tool: string) => void;
     private onTransformChangeCallback?: (transform: any) => void;
     private onObjectSelectCallback?: (uuid: string) => void;
+    private onTextureSelectCallback?: (type: 'texture' | 'normal', url: string) => void;
     private onGridChangeCallback?: (settings: { visible: boolean; size: number; spacing: number }) => void;
 
     // Selected object tracking
@@ -38,6 +39,7 @@ export class EditorUIController {
         this.initializeElements();
         this.setupEventListeners();
         this.initializePanels();
+        this.populateTextureLibraries();
     }
 
     private initializeElements(): void {
@@ -387,6 +389,74 @@ export class EditorUIController {
         });
     }
 
+    private populateTextureLibraries(): void {
+        const textureLibrary = document.getElementById('texture-library');
+        const normalLibrary = document.getElementById('normal-library');
+
+        const textures = [
+            { name: 'None', url: '' },
+            { name: 'Bricks', url: '../../engine/Textures/brick_wall_02_diff_2k.jpg' },
+            { name: 'Tiles', url: '../../engine/Textures/clay_roof_tiles_02_diff_1k.png' }
+        ];
+
+        const normalMaps = [
+            { name: 'None', url: '' },
+            { name: 'Tiles Normal', url: '../../engine/Textures/clay_roof_tiles_02_nor_gl_1k.png' },
+            { name: 'Stone Normal', url: '../../engine/Textures/normal_mapping_normal_map_resized_66d168742d720.png' }
+        ];
+
+        if (textureLibrary) {
+            textures.forEach(tex => {
+                const item = this.createTextureLibraryItem(tex.name, tex.url, 'texture');
+                textureLibrary.appendChild(item);
+            });
+        }
+
+        if (normalLibrary) {
+            normalMaps.forEach(nor => {
+                const item = this.createTextureLibraryItem(nor.name, nor.url, 'normal');
+                normalLibrary.appendChild(item);
+            });
+        }
+    }
+
+    private createTextureLibraryItem(name: string, url: string, type: 'texture' | 'normal'): HTMLElement {
+        const item = document.createElement('div');
+        item.className = 'texture-item';
+        if (url === '') item.classList.add('none-item');
+        item.title = name;
+
+        if (url !== '') {
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = name;
+            item.appendChild(img);
+        } else {
+            const icon = document.createElement('div');
+            icon.className = 'none-icon';
+            icon.innerHTML = '✕';
+            item.appendChild(icon);
+        }
+
+        const label = document.createElement('div');
+        label.className = 'texture-item-label';
+        label.textContent = name;
+        item.appendChild(label);
+
+        item.addEventListener('click', () => {
+            // Remove active class from all items in this library
+            const parent = item.parentElement;
+            parent?.querySelectorAll('.texture-item').forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+
+            if (this.onTextureSelectCallback) {
+                this.onTextureSelectCallback(type, url);
+            }
+        });
+
+        return item;
+    }
+
     private handleAddObject(type: string, subtype: string): void {
         console.log(`Add ${type}: ${subtype}`);
         if (this.onAddObjectCallback) {
@@ -409,6 +479,10 @@ export class EditorUIController {
 
     public onObjectSelect(callback: (uuid: string) => void): void {
         this.onObjectSelectCallback = callback;
+    }
+
+    public onTextureSelect(callback: (type: 'texture' | 'normal', url: string) => void): void {
+        this.onTextureSelectCallback = callback;
     }
 
     public onGridChange(callback: (settings: { visible: boolean; size: number; spacing: number }) => void): void {

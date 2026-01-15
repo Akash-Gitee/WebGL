@@ -44,8 +44,8 @@ export class CameraController {
   OrthographicCamera(
     left: number,
     right: number,
-    top: number,
     bottom: number,
+    top: number,
     near: number,
     far: number
   ) {
