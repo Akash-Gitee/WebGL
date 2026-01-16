@@ -28,30 +28,39 @@ const canvas = document.getElementById("Mycanvas") as HTMLCanvasElement;
 const webgl = new WebGLRenderEngine(canvas);
 
 // Resize canvas to fit viewport
-function resizeCanvas() {
+// Initialize camera  
+const camera = new CameraController();
+
+// Consolidated resize and aspect update
+function handleResize() {
   const viewport = document.getElementById("viewport-container");
   if (viewport) {
     const rect = viewport.getBoundingClientRect();
-    webgl.resize(rect.width, rect.height);
+    const width = Math.floor(rect.width);
+    const height = Math.floor(rect.height);
+
+    // Update renderer resolution and viewport
+    webgl.resize(width, height);
+
+    // Update camera aspect ratio
+    const aspect = width / height;
+    if (camera) {
+      if ((camera as any).projectionType === "orthographic") {
+        const size = 2.0;
+        camera.OrthographicCamera(-size * aspect, size * aspect, -size, size, 0.1, 1000);
+      } else {
+        camera.PerspectiveCamera(45, aspect, 0.1, 1000);
+      }
+      camera.OrbitCamera();
+    }
   }
 }
-resizeCanvas();
-window.addEventListener("resize", resizeCanvas);
 
-// Initialize camera
-const camera = new CameraController();
+// Initial setup
+handleResize();
 
-// Calculate aspect ratio after canvas is sized
-function updateCameraAspect() {
-  const aspect = canvas.clientWidth / canvas.clientHeight;
-  camera.PerspectiveCamera(45, aspect, 0.1, 1000);
-  camera.OrbitCamera();
-}
-updateCameraAspect();
-window.addEventListener("resize", () => {
-  resizeCanvas();
-  updateCameraAspect();
-});
+// Consolidated resize listener
+window.addEventListener("resize", handleResize);
 
 // Initialize scene
 const scene = new SceneHierarchyManager();
@@ -359,10 +368,11 @@ function updateObjectProperties(obj: any) {
   if (uuidElement) uuidElement.textContent = objectUUID;
 
   // Update transform properties
-  if (obj.position) {
-    (document.getElementById("pos-x") as HTMLInputElement).value = obj.position.x?.toFixed(2) || "0.00";
-    (document.getElementById("pos-y") as HTMLInputElement).value = obj.position.y?.toFixed(2) || "0.00";
-    (document.getElementById("pos-z") as HTMLInputElement).value = obj.position.z?.toFixed(2) || "0.00";
+  const pos = obj.position || obj.eye;
+  if (pos) {
+    (document.getElementById("pos-x") as HTMLInputElement).value = pos.x?.toFixed(2) || "0.00";
+    (document.getElementById("pos-y") as HTMLInputElement).value = pos.y?.toFixed(2) || "0.00";
+    (document.getElementById("pos-z") as HTMLInputElement).value = pos.z?.toFixed(2) || "0.00";
   }
 
   if (obj.rotate) {
@@ -500,7 +510,8 @@ function updateObjectProperties(obj: any) {
   if (obj === camera) {
     const cameraPanel = document.getElementById("camera-properties-panel");
     if (cameraPanel) cameraPanel.style.display = "block";
-    (document.getElementById("camera-type") as HTMLElement).textContent = "Perspective";
+    const projType = (camera as any).projectionType || "perspective";
+    (document.getElementById("camera-type") as HTMLElement).textContent = projType.charAt(0).toUpperCase() + projType.slice(1);
     (document.getElementById("camera-pos-x") as HTMLInputElement).value = isNaN(camera.eye.x) ? "0.00" : camera.eye.x.toFixed(2);
     (document.getElementById("camera-pos-y") as HTMLInputElement).value = isNaN(camera.eye.y) ? "0.00" : camera.eye.y.toFixed(2);
     (document.getElementById("camera-pos-z") as HTMLInputElement).value = isNaN(camera.eye.z) ? "0.00" : camera.eye.z.toFixed(2);
@@ -738,10 +749,97 @@ uiManager.onAddObject((type: string, subtype: string) => {
   } else if (type === "camera") {
     // Camera is already created, just update type if needed
     if (subtype === "orthographic") {
-      camera.OrthographicCamera(-7, 7, -7, 7, 0.1, 1000);
+      const aspect = canvas.clientWidth / canvas.clientHeight;
+      const size = 2.0; // Tighter bounds for better focus
+
+      // Reset camera to front view for a truly flat orthographic look
+      camera.eye = { x: 0, y: 0, z: 10 };
+      camera.center = { x: 0, y: 0, z: 0 };
+      camera.OrbitCamera();
+
+      // Update orbit controller's internal state to match new eye
+      if ((events as any).updateOrbitParametersFromEye) {
+        (events as any).updateOrbitParametersFromEye(camera);
+      }
+
+      camera.OrthographicCamera(-size * aspect, size * aspect, -size, size, 0.1, 1000);
     } else {
       camera.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
     }
+
+    // Update UI if camera is selected
+    if (selectedObject === camera) {
+      updateObjectProperties(camera);
+    }
+    updateSceneGraph();
+  }
+});
+
+// Handle New Scene
+document.getElementById("new-scene-btn")?.addEventListener("click", () => {
+  if (confirm("Create new scene? All unsaved changes will be lost.")) {
+    // Clear scene objects
+    scene.objects = [];
+    createdObjects.clear();
+
+    // Clear and re-add Grid
+    gridGenerator = new GridHelper(currentGridSettings.size, currentGridSettings.spacing);
+    gridMesh = new RenderableMeshObject(gridGenerator.createGrid());
+    scene.add(gridMesh);
+
+    // Re-add default cube
+    const boxGeometry = new BoxGeometryBuilder();
+    const cubeMaterial = material.getMaterialProperties({
+      color: MaterialColor.red,
+      metallic: 0.5,
+      roughness: 0.5,
+      specular: 16.0,
+      alpha: 1.0,
+      emissionColor: [0.0, 0.0, 0.0],
+      emissionIntensity: 0.0,
+    });
+    const cube = new RenderableMeshObject(boxGeometry.CubeData(), cubeMaterial);
+    cube.position = { x: 0, y: 0, z: 0 };
+    cube.updateTranslate();
+    scene.add(cube);
+
+    // Reset master light to default
+    masterLight.lightData.point.position = [];
+    masterLight.lightData.point.radius = [];
+    masterLight.lightData.point.color = [];
+    masterLight.lightData.point.intensity = [];
+    masterLight.lightData.spot.position = [];
+    masterLight.lightData.spot.direction = [];
+    masterLight.lightData.spot.angle = [];
+    masterLight.lightData.spot.color = [];
+    masterLight.lightData.spot.intensity = [];
+    masterLight.lightData.directional.direction = [];
+    masterLight.lightData.directional.color = [];
+    masterLight.lightData.directional.intensity = [];
+
+    masterLight.PointLight({
+      lightPosition: [0.0, 0.0, 3.0],
+      radius: 2.0,
+      lightColor: [1.0, 1.0, 1.0],
+      intensity: 2.0,
+    });
+
+    // Reset camera
+    camera.eye = { x: 0, y: 0, z: 10 };
+    camera.center = { x: 0, y: 0, z: 0 };
+    camera.OrbitCamera();
+
+    // Deselect
+    selectedObject = null;
+    previousSelectedUUID = null;
+    events.selectedObject = null;
+    events.isObjectSelected = false;
+    events.select = [];
+    if (events.gizmo) {
+      events.gizmo.visible = false;
+      events.gizmo.removeFromScene(scene);
+    }
+
     updateSceneGraph();
   }
 });

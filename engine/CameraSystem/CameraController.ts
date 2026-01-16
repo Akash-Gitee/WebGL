@@ -3,6 +3,7 @@ import { uuidv4 } from "../IdentifierSystem/UniqueIdentifierGenerator.js";
 
 export class CameraController {
   uuid: string;
+  type: string = "Camera";
   translate: number[];
   scale: { x: number; y: number; z: number };
   rotate: { x: number; y: number; z: number };
@@ -15,6 +16,7 @@ export class CameraController {
   localMatrix: any;
   viewProjectionMatrix: any;
   rm: any;
+  projectionType: "perspective" | "orthographic" = "perspective";
   constructor() {
     this.uuid = uuidv4();
     this.translate = [0, 0, 0];
@@ -36,6 +38,7 @@ export class CameraController {
 
   // perspective Camera
   PerspectiveCamera(fov: number, aspect: number, near: number, far: number) {
+    this.projectionType = "perspective";
     mat4.perspective(this.projectionMatrix, fov, aspect, near, far);
     this._updateViewProjection();
   }
@@ -49,6 +52,7 @@ export class CameraController {
     near: number,
     far: number
   ) {
+    this.projectionType = "orthographic";
     mat4.ortho(this.projectionMatrix, left, right, bottom, top, near, far);
     this._updateViewProjection();
   }

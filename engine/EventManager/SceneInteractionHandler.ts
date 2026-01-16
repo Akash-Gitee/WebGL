@@ -381,8 +381,12 @@ export class SceneInteractionHandler {
         !this.isObjectSelected &&
         !this.isGizmoInteraction
       ) {
-        this.rotationX += e.movementX * 0.5;
-        this.rotationY += e.movementY * 0.5;
+        // Lock rotation in orthographic mode
+        if ((this.camera as any).projectionType !== "orthographic") {
+          this.rotationX += e.movementX * 0.5;
+          this.rotationY += e.movementY * 0.5;
+        }
+
         const pos = this.controlEvent();
         this.camera.eye = { x: pos[0], y: pos[1], z: pos[2] };
         this.camera.OrbitCamera();

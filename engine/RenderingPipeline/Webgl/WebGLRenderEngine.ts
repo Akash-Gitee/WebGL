@@ -57,6 +57,7 @@ export class WebGLRenderEngine {
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
+    this.gl = canvas.getContext("webgl") as WebGLRenderingContext;
     this.window = window;
     this.count = 0;
     this.lastFrameTime = 0;
@@ -65,7 +66,6 @@ export class WebGLRenderEngine {
     this.lastFpsUpdate = 0;
     this.currentFps = 0;
     this.resize(this.window.innerWidth, this.window.innerHeight);
-    this.gl = canvas.getContext("webgl") as WebGLRenderingContext;
 
     // Create default textures
     this.defaultTexture = this.createDefaultTexture();
@@ -98,6 +98,9 @@ export class WebGLRenderEngine {
   resize(Width: number, Height: number): void {
     this.canvas.width = Width;
     this.canvas.height = Height;
+    if (this.gl) {
+      this.gl.viewport(0, 0, Width, Height);
+    }
   }
   createDefaultTexture(): WebGLTexture {
     const width = 1,
