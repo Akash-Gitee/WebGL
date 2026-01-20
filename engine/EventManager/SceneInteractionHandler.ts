@@ -1,10 +1,10 @@
-import { mat4, vec3, vec4 } from "../MathLibrary/gl-matrix.js";
-import { CameraController } from "../CameraSystem/CameraController.js";
-import { TransformGizmoController } from "../CoreUtilities/TransformGizmoController.js";
-import { RenderableMeshObject } from "../MeshRenderer/RenderableMeshObject.js";
-import { GLTFSceneExporter } from "../AssetImporter/GLTFSceneExporter.js";
-import { WebGLRenderEngine } from "../RenderingPipeline/Webgl/WebGLRenderEngine.js";
-import { SceneHierarchyManager } from "../SceneGraph/SceneHierarchyManager.js";
+import { mat4, vec3, vec4 } from "../MathLibrary/gl-matrix";
+import { CameraController } from "../CameraSystem/CameraController";
+import { TransformGizmoController } from "../CoreUtilities/TransformGizmoController";
+import { RenderableMeshObject } from "../MeshRenderer/RenderableMeshObject";
+import { GLTFSceneExporter } from "../AssetImporter/GLTFSceneExporter";
+import { WebGLRenderEngine } from "../RenderingPipeline/Webgl/WebGLRenderEngine";
+import { SceneHierarchyManager } from "../SceneGraph/SceneHierarchyManager";
 
 
 

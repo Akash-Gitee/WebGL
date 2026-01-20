@@ -1,4 +1,4 @@
-import { uuidv4 } from "../IdentifierSystem/UniqueIdentifierGenerator.js";
+import { uuidv4 } from "../IdentifierSystem/UniqueIdentifierGenerator";
 
 interface BaseLightData {
     ambient: Float32Array | null;

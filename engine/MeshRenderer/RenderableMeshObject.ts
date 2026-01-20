@@ -1,9 +1,9 @@
-import { TextureCoordinates } from "../GeometryPrimitives/UVCoordinateMapper.js";
-import { NormalsData } from "../GeometryPrimitives/SurfaceNormalCalculator.js";
-import { Tangents } from "../GeometryPrimitives/TangentSpaceCalculator.js";
-import { PBRMaterialProperties } from "../MaterialSystem/PBRMaterialProperties.js";
-import { mat4, vec3 } from "../MathLibrary/gl-matrix.js";
-import { uuidv4 } from "../IdentifierSystem/UniqueIdentifierGenerator.js";
+import { TextureCoordinates } from "../GeometryPrimitives/UVCoordinateMapper";
+import { NormalsData } from "../GeometryPrimitives/SurfaceNormalCalculator";
+import { Tangents } from "../GeometryPrimitives/TangentSpaceCalculator";
+import { PBRMaterialProperties } from "../MaterialSystem/PBRMaterialProperties";
+import { mat4, vec3 } from "../MathLibrary/gl-matrix";
+import { uuidv4 } from "../IdentifierSystem/UniqueIdentifierGenerator";
 
 type Vec3 = [number, number, number];
 type Quaternion = [number, number, number, number];

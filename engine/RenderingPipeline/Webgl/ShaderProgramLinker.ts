@@ -1,4 +1,4 @@
-import { createShader } from "./ShaderCompiler.js";
+import { createShader } from "./ShaderCompiler";
 
 export function createProgram(
   gl: WebGLRenderingContext,

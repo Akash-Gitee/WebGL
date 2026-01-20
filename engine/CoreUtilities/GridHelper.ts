@@ -1,4 +1,4 @@
-import { uuidv4 } from "../IdentifierSystem/UniqueIdentifierGenerator.js";
+import { uuidv4 } from "../IdentifierSystem/UniqueIdentifierGenerator";
 
 export interface GeometryData {
   Vertices: Float32Array | number[];

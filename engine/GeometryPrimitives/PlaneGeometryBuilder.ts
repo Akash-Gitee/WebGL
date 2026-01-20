@@ -1,5 +1,5 @@
-import { mat4 } from "../MathLibrary/gl-matrix.js";
-import { uuidv4 } from "../IdentifierSystem/UniqueIdentifierGenerator.js";
+import { mat4 } from "../MathLibrary/gl-matrix";
+import { uuidv4 } from "../IdentifierSystem/UniqueIdentifierGenerator";
 
 export class PlaneGeometryBuilder {
   uuid: string;

@@ -1,6 +1,6 @@
-import { GridHelper } from "../CoreUtilities/GridHelper.js";
-import { RenderableMeshObject } from "../MeshRenderer/RenderableMeshObject.js";
-import { SceneLightingManager } from "../LightingEngine/SceneLightingManager.js";
+import { GridHelper } from "../CoreUtilities/GridHelper";
+import { RenderableMeshObject } from "../MeshRenderer/RenderableMeshObject";
+import { SceneLightingManager } from "../LightingEngine/SceneLightingManager";
 export class SceneHierarchyManager {
   objects: RenderableMeshObject[];
   lights: SceneLightingManager[];

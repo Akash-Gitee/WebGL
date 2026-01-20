@@ -1,8 +1,8 @@
-import { mat4, vec3, vec4 } from "../MathLibrary/gl-matrix.js";
-import { RenderableMeshObject } from "../MeshRenderer/RenderableMeshObject.js";
-import { PBRMaterialProperties } from "../MaterialSystem/PBRMaterialProperties.js";
-import { TextureAssetLoader } from "../CoreUtilities/TextureAssetLoader.js";
-import { SceneHierarchyManager } from "../SceneGraph/SceneHierarchyManager.js";
+import { mat4, vec3, vec4 } from "../MathLibrary/gl-matrix";
+import { RenderableMeshObject } from "../MeshRenderer/RenderableMeshObject";
+import { PBRMaterialProperties } from "../MaterialSystem/PBRMaterialProperties";
+import { TextureAssetLoader } from "../CoreUtilities/TextureAssetLoader";
+import { SceneHierarchyManager } from "../SceneGraph/SceneHierarchyManager";
 
 // Define interfaces for GLTF structure
 interface GLTFNode {

@@ -1,6 +1,6 @@
-import { PBRMaterialProperties } from "../MaterialSystem/PBRMaterialProperties.js";
-import { mat4, vec3, vec4 } from "../MathLibrary/gl-matrix.js";
-import { RenderableMeshObject } from "../MeshRenderer/RenderableMeshObject.js";
+import { PBRMaterialProperties } from "../MaterialSystem/PBRMaterialProperties";
+import { mat4, vec3, vec4 } from "../MathLibrary/gl-matrix";
+import { RenderableMeshObject } from "../MeshRenderer/RenderableMeshObject";
 
 // Types for axis directions
 type Axis = "x" | "y" | "z";

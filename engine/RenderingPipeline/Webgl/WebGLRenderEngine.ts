@@ -1,28 +1,28 @@
-import { mat4, vec3 } from "../../MathLibrary/gl-matrix.js";
-import { SceneLightingManager } from "../../LightingEngine/SceneLightingManager.js";
-import { CameraController } from "../../CameraSystem/CameraController.js";
-import { SphereGeometryBuilder } from "../../GeometryPrimitives/SphereGeometryBuilder.js";
-import { ConeGeometryBuilder } from "../../GeometryPrimitives/ConeGeometryBuilder.js";
-import { CylinderGeometryBuilder } from "../../GeometryPrimitives/CylinderGeometryBuilder.js";
+import { mat4, vec3 } from "../../MathLibrary/gl-matrix";
+import { SceneLightingManager } from "../../LightingEngine/SceneLightingManager";
+import { CameraController } from "../../CameraSystem/CameraController";
+import { SphereGeometryBuilder } from "../../GeometryPrimitives/SphereGeometryBuilder";
+import { ConeGeometryBuilder } from "../../GeometryPrimitives/ConeGeometryBuilder";
+import { CylinderGeometryBuilder } from "../../GeometryPrimitives/CylinderGeometryBuilder";
 import {
   createElementBuffer,
   createBuffer,
-} from "./GPUBufferManager.js";
-import { createProgram } from "./ShaderProgramLinker.js";
+} from "./GPUBufferManager";
+import { createProgram } from "./ShaderProgramLinker";
 import {
   getAttribLocation,
   getUniformLocation,
-} from "./AttributeLocationResolver.js";
-import { TextureCoordinates } from "../../GeometryPrimitives/UVCoordinateMapper.js";
-import { NormalsData } from "../../GeometryPrimitives/SurfaceNormalCalculator.js";
-import { Tangents } from "../../GeometryPrimitives/TangentSpaceCalculator.js";
+} from "./AttributeLocationResolver";
+import { TextureCoordinates } from "../../GeometryPrimitives/UVCoordinateMapper";
+import { NormalsData } from "../../GeometryPrimitives/SurfaceNormalCalculator";
+import { Tangents } from "../../GeometryPrimitives/TangentSpaceCalculator";
 import {
   isSphereInFrustum,
   createBoundingSphere,
   extractFrustumPlanes,
-} from "./ViewFrustumCuller.js";
-import { TransformGizmoController } from "../../CoreUtilities/TransformGizmoController.js";
-import { PBRMaterialProperties } from "../../MaterialSystem/PBRMaterialProperties.js";
+} from "./ViewFrustumCuller";
+import { TransformGizmoController } from "../../CoreUtilities/TransformGizmoController";
+import { PBRMaterialProperties } from "../../MaterialSystem/PBRMaterialProperties";
 
 interface SceneObject {
   boundingBox?: {
@@ -424,7 +424,7 @@ export class WebGLRenderEngine {
 
     this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
   }
-  // Modified drawMeshes method in Webgl.js
+  // Modified drawMeshes method in Webgl
   drawMeshes(
     program: WebGLProgram,
     camera: any,

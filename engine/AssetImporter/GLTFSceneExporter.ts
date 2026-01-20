@@ -1,9 +1,9 @@
-import { mat4, vec3, vec4 } from "../MathLibrary/gl-matrix.js";
-import { TextureCoordinates } from "../GeometryPrimitives/UVCoordinateMapper.js";
-import { NormalsData } from "../GeometryPrimitives/SurfaceNormalCalculator.js";
-import { Tangents } from "../GeometryPrimitives/TangentSpaceCalculator.js";
-import { RenderableMeshObject } from "../MeshRenderer/RenderableMeshObject.js";
-import { PBRMaterialProperties } from "../MaterialSystem/PBRMaterialProperties.js";
+import { mat4, vec3, vec4 } from "../MathLibrary/gl-matrix";
+import { TextureCoordinates } from "../GeometryPrimitives/UVCoordinateMapper";
+import { NormalsData } from "../GeometryPrimitives/SurfaceNormalCalculator";
+import { Tangents } from "../GeometryPrimitives/TangentSpaceCalculator";
+import { RenderableMeshObject } from "../MeshRenderer/RenderableMeshObject";
+import { PBRMaterialProperties } from "../MaterialSystem/PBRMaterialProperties";
 
 // ======================
 // Type Definitions

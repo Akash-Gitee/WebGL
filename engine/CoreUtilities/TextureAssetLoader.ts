@@ -1,5 +1,5 @@
-import { NormalsData } from "../GeometryPrimitives/SurfaceNormalCalculator.js"; // Replace with actual path
-import { SceneHierarchyManager } from "../SceneGraph/SceneHierarchyManager.js";
+import { NormalsData } from "../GeometryPrimitives/SurfaceNormalCalculator"; // Replace with actual path
+import { SceneHierarchyManager } from "../SceneGraph/SceneHierarchyManager";
 interface TextureData {
   texture: WebGLTexture | null;
   base64Image: string | null;

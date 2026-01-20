@@ -1,26 +1,26 @@
-import { EditorUIController } from "../../engine/UserInterface/EditorUIController.js";
-import { WebGLRenderEngine } from "../../engine/RenderingPipeline/Webgl/WebGLRenderEngine.js";
-import { CameraController } from "../../engine/CameraSystem/CameraController.js";
-import { SceneHierarchyManager } from "../../engine/SceneGraph/SceneHierarchyManager.js";
-import { PBRMaterialProperties } from "../../engine/MaterialSystem/PBRMaterialProperties.js";
-import { TextureAssetLoader } from "../../engine/CoreUtilities/TextureAssetLoader.js";
-import { GridHelper } from "../../engine/CoreUtilities/GridHelper.js";
-import { RenderableMeshObject } from "../../engine/MeshRenderer/RenderableMeshObject.js";
-import { BoxGeometryBuilder } from "../../engine/GeometryPrimitives/BoxGeometryBuilder.js";
-import { SphereGeometryBuilder } from "../../engine/GeometryPrimitives/SphereGeometryBuilder.js";
-import { PlaneGeometryBuilder } from "../../engine/GeometryPrimitives/PlaneGeometryBuilder.js";
-import { ConeGeometryBuilder } from "../../engine/GeometryPrimitives/ConeGeometryBuilder.js";
-import { CylinderGeometryBuilder } from "../../engine/GeometryPrimitives/CylinderGeometryBuilder.js";
-import { SceneLightingManager } from "../../engine/LightingEngine/SceneLightingManager.js";
-import { GLTFAssetLoader } from "../../engine/AssetImporter/GLTFAssetLoader.js";
-import { SceneInteractionHandler } from "../../engine/EventManager/SceneInteractionHandler.js";
-import { GLTFSceneExporter } from "../../engine/AssetImporter/GLTFSceneExporter.js";
-import { createProgram } from "../../engine/RenderingPipeline/Webgl/ShaderProgramLinker.js";
+import { EditorUIController } from "../../engine/UserInterface/EditorUIController";
+import { WebGLRenderEngine } from "../../engine/RenderingPipeline/Webgl/WebGLRenderEngine";
+import { CameraController } from "../../engine/CameraSystem/CameraController";
+import { SceneHierarchyManager } from "../../engine/SceneGraph/SceneHierarchyManager";
+import { PBRMaterialProperties } from "../../engine/MaterialSystem/PBRMaterialProperties";
+import { TextureAssetLoader } from "../../engine/CoreUtilities/TextureAssetLoader";
+import { GridHelper } from "../../engine/CoreUtilities/GridHelper";
+import { RenderableMeshObject } from "../../engine/MeshRenderer/RenderableMeshObject";
+import { BoxGeometryBuilder } from "../../engine/GeometryPrimitives/BoxGeometryBuilder";
+import { SphereGeometryBuilder } from "../../engine/GeometryPrimitives/SphereGeometryBuilder";
+import { PlaneGeometryBuilder } from "../../engine/GeometryPrimitives/PlaneGeometryBuilder";
+import { ConeGeometryBuilder } from "../../engine/GeometryPrimitives/ConeGeometryBuilder";
+import { CylinderGeometryBuilder } from "../../engine/GeometryPrimitives/CylinderGeometryBuilder";
+import { SceneLightingManager } from "../../engine/LightingEngine/SceneLightingManager";
+import { GLTFAssetLoader } from "../../engine/AssetImporter/GLTFAssetLoader";
+import { SceneInteractionHandler } from "../../engine/EventManager/SceneInteractionHandler";
+import { GLTFSceneExporter } from "../../engine/AssetImporter/GLTFSceneExporter";
+import { createProgram } from "../../engine/RenderingPipeline/Webgl/ShaderProgramLinker";
 import {
   PointLightvsSource, PointLightfsSource,
   SpotLightvsSource, SpotLightfsSource,
   DirLightvsSource, DirLightfsSource
-} from "../../engine/RenderingPipeline/Shaders/GLSLShaderLibrary.js";
+} from "../../engine/RenderingPipeline/Shaders/GLSLShaderLibrary";
 
 
 // Initialize canvas and WebGL
