@@ -75,6 +75,8 @@ const Texture = new TextureAssetLoader(gl, scene);
 let currentGridSettings = { size: 20, spacing: 3.0, visible: true };
 let gridGenerator = new GridHelper(currentGridSettings.size, currentGridSettings.spacing);
 let gridMesh = new RenderableMeshObject(gridGenerator.createGrid());
+gridMesh.position = { x: 0, y: 0, z: 0 };
+gridMesh.updateTranslate();
 scene.add(gridMesh);
 
 const boxGeometry = new BoxGeometryBuilder();
@@ -785,6 +787,8 @@ document.getElementById("new-scene-btn")?.addEventListener("click", () => {
     // Clear and re-add Grid
     gridGenerator = new GridHelper(currentGridSettings.size, currentGridSettings.spacing);
     gridMesh = new RenderableMeshObject(gridGenerator.createGrid());
+    gridMesh.position = { x: 0, y: 0, z: 0 };
+    gridMesh.updateTranslate();
     scene.add(gridMesh);
 
     // Re-add default cube
