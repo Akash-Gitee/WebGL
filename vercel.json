@@ -1,0 +1,15 @@
+{
+    "version": 2,
+    "cleanUrls": true,
+    "outputDirectory": "dist",
+    "rewrites": [
+        {
+            "source": "/",
+            "destination": "/Showcase/3DEditor/index.html"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/$1"
+        }
+    ]
+}
