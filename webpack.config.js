@@ -35,6 +35,11 @@ module.exports = (env, argv) => {
                     {
                         from: "engine/UserInterface/styles",
                         to: "engine/UserInterface/styles"
+                    },
+                    // Copy Textures
+                    {
+                        from: "engine/Textures",
+                        to: "engine/Textures"
                     }
                 ]
             })
