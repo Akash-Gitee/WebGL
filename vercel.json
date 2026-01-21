@@ -1,13 +1,5 @@
 {
   "version": 2,
-  "routes": [
-    {
-      "src": "^/$",
-      "dest": "/Showcase/3DEditor/index.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
-    }
-  ]
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/Showcase/3DEditor"
 }

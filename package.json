@@ -1,6 +1,7 @@
 {
   "devDependencies": {
     "@tsconfig/strictest": "^2.0.5",
+    "copy-webpack-plugin": "^12.0.2",
     "shx": "^0.4.0",
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
@@ -11,8 +12,9 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "webpack serve --mode development",
     "start": "webpack serve --mode development",
-    "build": "npx webpack --mode production && npx shx mkdir -p dist/Showcase/3DEditor && npx shx cp Showcase/3DEditor/index.html dist/Showcase/3DEditor/ && npx shx mkdir -p dist/engine/UserInterface/styles && npx shx cp -r engine/UserInterface/styles/* dist/engine/UserInterface/styles/",
+    "build": "webpack --mode production",
     "watch": "tsc --watch"
   },
   "keywords": [],
