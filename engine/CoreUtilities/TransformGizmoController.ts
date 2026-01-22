@@ -98,9 +98,9 @@ export class TransformGizmoController {
     this.visible = false;
     this.currentGizmoType = "translate"; // Set default mode
     this.mode = this.currentGizmoType; // Current active mode
-    this.cylinderLength = 1.5;
-    this.arrowSize = 0.1;
-    this.ringRadius = 1.5;
+    this.cylinderLength = 1.0;
+    this.arrowSize = 0.15;
+    this.ringRadius = 1.0;
     this.ringThickness = 0.05;
     this.createControlButtons();
   }
@@ -333,22 +333,9 @@ export class TransformGizmoController {
     if (!this.gizmoMeshes.length) return;
 
     this.gizmoMeshes.forEach((mesh) => {
-      if (!mesh.localMatrix) return;
-
-      mat4.copy(mesh.localMatrix, this.localMatrix);
-      if (mesh.additionalTransform) {
-        mat4.multiply(
-          mesh.localMatrix,
-          mesh.localMatrix,
-          mesh.additionalTransform
-        );
-      }
-      mesh.position = {
-        x: this.position.x,
-        y: this.position.y,
-        z: this.position.z,
-      };
-      this.updateMeshBoundingBox(mesh);
+      mesh.position = { ...this.position };
+      mesh.rotate = { ...this.rotate };
+      mesh.updateLocalMatrix();
     });
   }
   createControlButtons(): void {
@@ -1038,10 +1025,10 @@ export class TransformGizmoController {
   }
   updateLocalMatrix(): void {
     mat4.identity(this.localMatrix);
-    mat4.scale(
+    mat4.translate(
       this.localMatrix,
       this.localMatrix,
-      [this.scale.x, this.scale.y, this.scale.z]
+      [this.position.x, this.position.y, this.position.z]
     );
     mat4.rotateX(
       this.localMatrix,
@@ -1058,10 +1045,10 @@ export class TransformGizmoController {
       this.localMatrix,
       this.rotate.z
     );
-    mat4.translate(
+    mat4.scale(
       this.localMatrix,
       this.localMatrix,
-      [this.position.x, this.position.y, this.position.z]
+      [this.scale.x, this.scale.y, this.scale.z]
     );
     this.updateGizmoMeshes();
   }

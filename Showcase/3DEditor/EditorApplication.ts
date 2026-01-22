@@ -16,6 +16,11 @@ import { GLTFAssetLoader } from "../../engine/AssetImporter/GLTFAssetLoader";
 import { SceneInteractionHandler } from "../../engine/EventManager/SceneInteractionHandler";
 import { GLTFSceneExporter } from "../../engine/AssetImporter/GLTFSceneExporter";
 import { createProgram } from "../../engine/RenderingPipeline/Webgl/ShaderProgramLinker";
+import { PointLightNode } from "../../engine/LightingEngine/PointLightNode";
+import { SpotLightNode } from "../../engine/LightingEngine/SpotLightNode";
+import { DirectionalLightNode } from "../../engine/LightingEngine/DirectionalLightNode";
+import { SceneNode } from "../../engine/SceneGraph/SceneNode";
+import { LightNode } from "../../engine/LightingEngine/LightNode";
 import {
   PointLightvsSource, PointLightfsSource,
   SpotLightvsSource, SpotLightfsSource,
@@ -116,16 +121,15 @@ masterLight.BaseLight({
   diffuseLight: [1.0, 1.0, 1.0],
   specularLight: [1.0, 1.0, 1.0],
 });
+scene.globalLight = masterLight;
 
 // Add default point light
-masterLight.PointLight({
-  lightPosition: [0.0, 0.0, 3.0],
-  radius: 2.0,
-  lightColor: [1.0, 1.0, 1.0],
-  intensity: 2.0,
-});
-
-scene.add(masterLight);
+const defaultLight = new PointLightNode("Main Point Light");
+defaultLight.position = { x: 0, y: 0, z: 3 };
+defaultLight.radius = 2.0;
+defaultLight.color = [1, 1, 1];
+defaultLight.intensity = 2.0;
+scene.add(defaultLight);
 
 // Store individual light instances for UI tracking
 const lightInstances: Map<string, { light: SceneLightingManager; type: string; index: number }> = new Map();
@@ -181,59 +185,27 @@ let frameCount = 0;
 function updateSceneGraph() {
   const sceneObjects: any[] = [];
 
-  // Add meshes
-  scene.objects.forEach((mesh: any) => {
-    if (mesh.type !== "Grid-Geometry" && !mesh.isGizmoPart) {
-      sceneObjects.push({
-        uuid: mesh.uuid,
-        name: mesh.type || "Mesh",
-        type: "Mesh",
-        children: mesh.children?.map((child: any) => ({
-          uuid: child.uuid,
-          name: child.type || "Mesh",
-          type: "Mesh",
-        })) || [],
-      });
-    }
-  });
+  const convertNode = (node: SceneNode): any => {
+    return {
+      uuid: node.uuid,
+      name: node.name || node.type || "Object",
+      type: node.type,
+      isGizmoPart: (node as any).isGizmoPart || false,
+      children: node.children
+        .filter(child => {
+          const isGizmo = (child as any).isGizmoPart || child.type?.startsWith("Gizmo-");
+          return !isGizmo;
+        })
+        .map(child => convertNode(child))
+    };
+  };
 
-  // Add lights - track individual lights from the master light's arrays
-  scene.lights.forEach((lightInstance: any) => {
-    // For point lights
-    for (let i = 0; i < lightInstance.lightData.point.position.length; i++) {
-      const lightId = `${lightInstance.uuid}_point_${i}`;
-      sceneObjects.push({
-        uuid: lightId,
-        name: `Point Light ${i + 1}`,
-        type: "PointLight",
-        lightInstance: lightInstance,
-        lightIndex: i,
-        lightType: "point",
-      });
-    }
-    // For spot lights
-    for (let i = 0; i < lightInstance.lightData.spot.position.length; i++) {
-      const lightId = `${lightInstance.uuid}_spot_${i}`;
-      sceneObjects.push({
-        uuid: lightId,
-        name: `Spot Light ${i + 1}`,
-        type: "SpotLight",
-        lightInstance: lightInstance,
-        lightIndex: i,
-        lightType: "spot",
-      });
-    }
-    // For directional lights
-    for (let i = 0; i < lightInstance.lightData.directional.direction.length; i++) {
-      const lightId = `${lightInstance.uuid}_directional_${i}`;
-      sceneObjects.push({
-        uuid: lightId,
-        name: `Directional Light ${i + 1}`,
-        type: "DirectionalLight",
-        lightInstance: lightInstance,
-        lightIndex: i,
-        lightType: "directional",
-      });
+  // Get root nodes from scene manager
+  const roots = scene.getRootNodes();
+  roots.forEach(root => {
+    const isGizmo = (root as any).isGizmoPart || root.type?.startsWith("Gizmo-");
+    if (root.type !== "Grid-Geometry" && !isGizmo) {
+      sceneObjects.push(convertNode(root));
     }
   });
 
@@ -246,6 +218,28 @@ function updateSceneGraph() {
 
   uiManager.updateSceneGraph(sceneObjects);
 }
+
+// Handle reparenting
+uiManager.onNodeReparent((childUuid, parentUuid) => {
+  const findNode = (nodes: SceneNode[], uuid: string): SceneNode | null => {
+    for (const node of nodes) {
+      if (node.uuid === uuid) return node;
+      const found = findNode(node.children, uuid);
+      if (found) return found;
+    }
+    return null;
+  };
+
+  const allNodes = scene.nodes;
+  const childNode = findNode(allNodes, childUuid);
+  const parentNode = parentUuid ? findNode(allNodes, parentUuid) : null;
+
+  if (childNode) {
+    childNode.setParent(parentNode);
+    updateSceneGraph();
+    console.log(`Reparented ${childNode.name} to ${parentNode ? parentNode.name : 'Root'}`);
+  }
+});
 
 // Handle object selection
 uiManager.onObjectSelect((uuid: string) => {
@@ -269,33 +263,12 @@ uiManager.onObjectSelect((uuid: string) => {
     }
   }
 
-  // Check lights - handle individual light instances
+  // Check lights - handle LightNode instances
   if (!foundObject) {
-    // Check if it's a light instance ID (format: uuid_type_index)
-    const lightMatch = uuid.match(/^(.+)_(point|spot|directional)_(\d+)$/);
-    if (lightMatch) {
-      const [, lightUuid, lightType, indexStr] = lightMatch;
-      const lightIndex = parseInt(indexStr, 10);
-
-      for (const lightInstance of scene.lights) {
-        if (lightInstance.uuid === lightUuid) {
-          foundObject = {
-            uuid: uuid,
-            lightInstance: lightInstance,
-            lightType: lightType,
-            lightIndex: lightIndex,
-            type: lightType === "point" ? "PointLight" : lightType === "spot" ? "SpotLight" : "DirectionalLight",
-          };
-          break;
-        }
-      }
-    } else {
-      // Check direct light UUID
-      for (const light of scene.lights) {
-        if (light.uuid === uuid) {
-          foundObject = light;
-          break;
-        }
+    for (const light of scene.lights) {
+      if (light.uuid === uuid) {
+        foundObject = light;
+        break;
       }
     }
   }
@@ -311,11 +284,11 @@ uiManager.onObjectSelect((uuid: string) => {
     updateObjectProperties(foundObject);
 
     // Dynamic Shader Switching based on selected object
-    if (foundObject.lightType === "point") {
+    if (foundObject.type === "PointLight") {
       program = pointProgram;
-    } else if (foundObject.lightType === "spot") {
+    } else if (foundObject.type === "SpotLight") {
       program = spotProgram;
-    } else if (foundObject.lightType === "directional") {
+    } else if (foundObject.type === "DirectionalLight") {
       program = dirProgram;
     } else {
       // For meshes or other objects, default to point light or some standard shader
@@ -338,9 +311,7 @@ uiManager.onObjectSelect((uuid: string) => {
 
       if (events.gizmo) {
         events.gizmo.visible = true;
-        events.gizmo.position = { ...foundObject.position };
-        events.gizmo.rotate = { x: 0, y: 0, z: 0 };
-        events.gizmo.updateLocalMatrix();
+        events.updateGizmoPosition(foundObject);
         if (!events.gizmo.gizmoMeshes.length) {
           events.gizmo.addToScene(scene);
         }
@@ -370,11 +341,11 @@ function updateObjectProperties(obj: any) {
   if (uuidElement) uuidElement.textContent = objectUUID;
 
   // Update transform properties
-  const pos = obj.position || obj.eye;
+  const pos = obj.position || (obj === camera ? camera.eye : null);
   if (pos) {
-    (document.getElementById("pos-x") as HTMLInputElement).value = pos.x?.toFixed(2) || "0.00";
-    (document.getElementById("pos-y") as HTMLInputElement).value = pos.y?.toFixed(2) || "0.00";
-    (document.getElementById("pos-z") as HTMLInputElement).value = pos.z?.toFixed(2) || "0.00";
+    (document.getElementById("pos-x") as HTMLInputElement).value = (pos.x as number)?.toFixed(2) || "0.00";
+    (document.getElementById("pos-y") as HTMLInputElement).value = (pos.y as number)?.toFixed(2) || "0.00";
+    (document.getElementById("pos-z") as HTMLInputElement).value = (pos.z as number)?.toFixed(2) || "0.00";
   }
 
   if (obj.rotate) {
@@ -410,12 +381,9 @@ function updateObjectProperties(obj: any) {
   }
 
   // Update light properties if it's a light
-  if (obj.lightInstance && obj.lightType && obj.lightIndex !== undefined) {
-    const lightPanel = document.getElementById("light-properties-panel");
+  const lightPanel = document.getElementById("light-properties-panel");
+  if (obj instanceof PointLightNode || obj instanceof SpotLightNode || obj instanceof DirectionalLightNode) {
     if (lightPanel) lightPanel.style.display = "block";
-    const lightInstance = obj.lightInstance;
-    const lightType = obj.lightType;
-    const index = obj.lightIndex;
 
     // Show/hide groups based on light type
     const positionGroup = document.getElementById("light-position-group");
@@ -423,88 +391,72 @@ function updateObjectProperties(obj: any) {
     const radiusGroup = document.getElementById("light-radius-group");
     const angleGroup = document.getElementById("light-angle-group");
 
-    if (lightType === "point") {
+    if (obj instanceof PointLightNode) {
       (document.getElementById("light-type") as HTMLElement).textContent = "Point Light";
       if (positionGroup) positionGroup.style.display = "block";
       if (directionGroup) directionGroup.style.display = "none";
       if (radiusGroup) radiusGroup.style.display = "block";
       if (angleGroup) angleGroup.style.display = "none";
 
-      const pos = lightInstance.lightData.point.position[index];
-      const color = lightInstance.lightData.point.color[index];
-      const intensity = lightInstance.lightData.point.intensity[index];
-      const radius = lightInstance.lightData.point.radius[index];
+      (document.getElementById("light-pos-x") as HTMLInputElement).value = obj.position.x.toFixed(2);
+      (document.getElementById("light-pos-y") as HTMLInputElement).value = obj.position.y.toFixed(2);
+      (document.getElementById("light-pos-z") as HTMLInputElement).value = obj.position.z.toFixed(2);
 
-      (document.getElementById("light-pos-x") as HTMLInputElement).value = pos[0].toFixed(2);
-      (document.getElementById("light-pos-y") as HTMLInputElement).value = pos[1].toFixed(2);
-      (document.getElementById("light-pos-z") as HTMLInputElement).value = pos[2].toFixed(2);
+      (document.getElementById("light-radius-slider") as HTMLInputElement).value = obj.radius.toString();
+      (document.getElementById("light-radius-value") as HTMLElement).textContent = obj.radius.toFixed(1);
 
-      (document.getElementById("light-radius-slider") as HTMLInputElement).value = radius.toString();
-      (document.getElementById("light-radius-value") as HTMLElement).textContent = radius.toFixed(1);
-
-      const colorHex = rgbToHex(color[0], color[1], color[2]);
+      const colorHex = rgbToHex(obj.color[0], obj.color[1], obj.color[2]);
       (document.getElementById("light-color-input") as HTMLInputElement).value = colorHex;
       (document.getElementById("light-color-swatch") as HTMLElement).style.backgroundColor = colorHex;
 
-      (document.getElementById("light-intensity-slider") as HTMLInputElement).value = intensity.toString();
-      (document.getElementById("light-intensity-value") as HTMLElement).textContent = intensity.toFixed(1);
+      (document.getElementById("light-intensity-slider") as HTMLInputElement).value = obj.intensity.toString();
+      (document.getElementById("light-intensity-value") as HTMLElement).textContent = obj.intensity.toFixed(1);
 
-    } else if (lightType === "spot") {
+    } else if (obj instanceof SpotLightNode) {
       (document.getElementById("light-type") as HTMLElement).textContent = "Spot Light";
       if (positionGroup) positionGroup.style.display = "block";
       if (directionGroup) directionGroup.style.display = "block";
       if (radiusGroup) radiusGroup.style.display = "none";
       if (angleGroup) angleGroup.style.display = "block";
 
-      const pos = lightInstance.lightData.spot.position[index];
-      const dir = lightInstance.lightData.spot.direction[index];
-      const color = lightInstance.lightData.spot.color[index];
-      const intensity = lightInstance.lightData.spot.intensity[index];
-      const angle = lightInstance.lightData.spot.angle[index];
+      (document.getElementById("light-pos-x") as HTMLInputElement).value = obj.position.x.toFixed(2);
+      (document.getElementById("light-pos-y") as HTMLInputElement).value = obj.position.y.toFixed(2);
+      (document.getElementById("light-pos-z") as HTMLInputElement).value = obj.position.z.toFixed(2);
 
-      (document.getElementById("light-pos-x") as HTMLInputElement).value = pos[0].toFixed(2);
-      (document.getElementById("light-pos-y") as HTMLInputElement).value = pos[1].toFixed(2);
-      (document.getElementById("light-pos-z") as HTMLInputElement).value = pos[2].toFixed(2);
+      (document.getElementById("light-dir-x") as HTMLInputElement).value = obj.direction[0].toFixed(2);
+      (document.getElementById("light-dir-y") as HTMLInputElement).value = obj.direction[1].toFixed(2);
+      (document.getElementById("light-dir-z") as HTMLInputElement).value = obj.direction[2].toFixed(2);
 
-      (document.getElementById("light-dir-x") as HTMLInputElement).value = dir[0].toFixed(2);
-      (document.getElementById("light-dir-y") as HTMLInputElement).value = dir[1].toFixed(2);
-      (document.getElementById("light-dir-z") as HTMLInputElement).value = dir[2].toFixed(2);
-
-      const angleDegrees = (angle * 180) / Math.PI;
+      const angleDegrees = (obj.angle * 180) / Math.PI;
       (document.getElementById("light-angle-slider") as HTMLInputElement).value = angleDegrees.toString();
       (document.getElementById("light-angle-value") as HTMLElement).textContent = Math.round(angleDegrees).toString();
 
-      const colorHex = rgbToHex(color[0], color[1], color[2]);
+      const colorHex = rgbToHex(obj.color[0], obj.color[1], obj.color[2]);
       (document.getElementById("light-color-input") as HTMLInputElement).value = colorHex;
       (document.getElementById("light-color-swatch") as HTMLElement).style.backgroundColor = colorHex;
 
-      (document.getElementById("light-intensity-slider") as HTMLInputElement).value = intensity.toString();
-      (document.getElementById("light-intensity-value") as HTMLElement).textContent = intensity.toFixed(1);
+      (document.getElementById("light-intensity-slider") as HTMLInputElement).value = obj.intensity.toString();
+      (document.getElementById("light-intensity-value") as HTMLElement).textContent = obj.intensity.toFixed(1);
 
-    } else if (lightType === "directional") {
+    } else if (obj instanceof DirectionalLightNode) {
       (document.getElementById("light-type") as HTMLElement).textContent = "Directional Light";
       if (positionGroup) positionGroup.style.display = "none";
       if (directionGroup) directionGroup.style.display = "block";
       if (radiusGroup) radiusGroup.style.display = "none";
       if (angleGroup) angleGroup.style.display = "none";
 
-      const dir = lightInstance.lightData.directional.direction[index];
-      const color = lightInstance.lightData.directional.color[index];
-      const intensity = lightInstance.lightData.directional.intensity[index];
+      (document.getElementById("light-dir-x") as HTMLInputElement).value = obj.direction[0].toFixed(2);
+      (document.getElementById("light-dir-y") as HTMLInputElement).value = obj.direction[1].toFixed(2);
+      (document.getElementById("light-dir-z") as HTMLInputElement).value = obj.direction[2].toFixed(2);
 
-      (document.getElementById("light-dir-x") as HTMLInputElement).value = dir[0].toFixed(2);
-      (document.getElementById("light-dir-y") as HTMLInputElement).value = dir[1].toFixed(2);
-      (document.getElementById("light-dir-z") as HTMLInputElement).value = dir[2].toFixed(2);
-
-      const colorHex = rgbToHex(color[0], color[1], color[2]);
+      const colorHex = rgbToHex(obj.color[0], obj.color[1], obj.color[2]);
       (document.getElementById("light-color-input") as HTMLInputElement).value = colorHex;
       (document.getElementById("light-color-swatch") as HTMLElement).style.backgroundColor = colorHex;
 
-      (document.getElementById("light-intensity-slider") as HTMLInputElement).value = intensity.toString();
-      (document.getElementById("light-intensity-value") as HTMLElement).textContent = intensity.toFixed(1);
+      (document.getElementById("light-intensity-slider") as HTMLInputElement).value = obj.intensity.toString();
+      (document.getElementById("light-intensity-value") as HTMLElement).textContent = obj.intensity.toFixed(1);
     }
   } else {
-    const lightPanel = document.getElementById("light-properties-panel");
     if (lightPanel) lightPanel.style.display = "none";
   }
 
@@ -532,67 +484,45 @@ function rgbToHex(r: number, g: number, b: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
+// Initialize scene graph
+updateSceneGraph();
+
 // Handle transform changes from UI
 uiManager.onTransformChange((transform: any) => {
   if (selectedObject) {
-    if (selectedObject instanceof RenderableMeshObject) {
-      // Update position
+    if (selectedObject instanceof SceneNode) {
       if (transform.position) {
         selectedObject.position.x = transform.position.x;
         selectedObject.position.y = transform.position.y;
         selectedObject.position.z = transform.position.z;
-        selectedObject.updateTranslate();
+        selectedObject.updateLocalMatrix();
       }
 
-      // Update rotation
-      if (transform.rotation) {
+      if (transform.rotation && !(selectedObject instanceof LightNode)) {
         selectedObject.rotate.x = transform.rotation.x;
         selectedObject.rotate.y = transform.rotation.y;
         selectedObject.rotate.z = transform.rotation.z;
         selectedObject.ObjectRotation();
       }
 
-      // Update scale
-      if (transform.scale) {
+      if (transform.scale && !(selectedObject instanceof LightNode)) {
         selectedObject.scale.x = transform.scale.x;
         selectedObject.scale.y = transform.scale.y;
         selectedObject.scale.z = transform.scale.z;
         selectedObject.updateScale();
       }
 
-      // Update gizmo position
-      if (events.gizmo) {
-        events.gizmo.position = { ...selectedObject.position };
-        events.gizmo.updateLocalMatrix();
-      }
-    } else if (selectedObject.lightInstance && selectedObject.lightType && selectedObject.lightIndex !== undefined) {
-      // Handle light position updates
-      const lightInstance = selectedObject.lightInstance;
-      const lightType = selectedObject.lightType;
-      const index = selectedObject.lightIndex;
-
-      if (transform.position) {
-        if (lightType === "point" && lightInstance.lightData.point.position[index]) {
-          lightInstance.lightData.point.position[index][0] = transform.position.x;
-          lightInstance.lightData.point.position[index][1] = transform.position.y;
-          lightInstance.lightData.point.position[index][2] = transform.position.z;
-        } else if (lightType === "spot" && lightInstance.lightData.spot.position[index]) {
-          lightInstance.lightData.spot.position[index][0] = transform.position.x;
-          lightInstance.lightData.spot.position[index][1] = transform.position.y;
-          lightInstance.lightData.spot.position[index][2] = transform.position.z;
-        } else if (lightType === "directional" && lightInstance.lightData.directional.direction[index]) {
-          lightInstance.lightData.directional.direction[index][0] = transform.position.x;
-          lightInstance.lightData.directional.direction[index][1] = transform.position.y;
-          lightInstance.lightData.directional.direction[index][2] = transform.position.z;
-        }
+      // Update gizmo
+      if (events.gizmo && selectedObject instanceof RenderableMeshObject) {
+        events.updateGizmoPosition(selectedObject);
       }
     } else if (selectedObject === camera) {
-      // Handle camera position updates
       if (transform.position) {
         camera.eye.x = transform.position.x;
         camera.eye.y = transform.position.y;
         camera.eye.z = transform.position.z;
         camera.OrbitCamera();
+        events.updateOrbitParametersFromEye(camera);
       }
     }
   }
@@ -716,36 +646,44 @@ uiManager.onAddObject((type: string, subtype: string) => {
       events.webgl.selectedObject = mesh;
     }
   } else if (type === "light") {
-    // Add new light based on subtype to the master light
+    // Add new light based on subtype as a SceneNode
+    let newLight: LightNode | null = null;
+    const lightIndex = scene.lights.length + 1;
+
     switch (subtype) {
       case "point":
-        masterLight.PointLight({
-          lightPosition: [0.0, 3.0, 0.0],
-          radius: 2.0,
-          lightColor: [1.0, 1.0, 1.0],
-          intensity: 1.0,
-        });
+        newLight = new PointLightNode(`Point Light`);
+        newLight.position = { x: 0, y: 3, z: 0 };
+        (newLight as PointLightNode).radius = 2.0;
         program = pointProgram;
         break;
       case "spot":
-        masterLight.SpotLight({
-          lightPosition: [0.0, 0.0, 2.0],
-          spotLightDirection: [0.0, 0.0, -1.0],
-          spotLightAngle: Math.PI / 5,
-          lightColor: [1.0, 1.0, 1.0],
-          intensity: 1.0,
-        });
+        newLight = new SpotLightNode(`Spot Light`);
+        newLight.position = { x: 0, y: 0, z: 2 };
+        (newLight as SpotLightNode).direction = [0, 0, -1];
+        (newLight as SpotLightNode).angle = Math.PI / 5;
         program = spotProgram;
         break;
       case "directional":
-        masterLight.DirectionalLight({
-          lightDirection: [0.0, 0.0, 1.0],
-          lightColor: [1.0, 1.0, 1.0],
-          intensity: 1.0,
-        });
+        newLight = new DirectionalLightNode(`Directional Light`);
+        (newLight as DirectionalLightNode).direction = [0, 0, 1];
         program = dirProgram;
         break;
     }
+
+    if (newLight) {
+      newLight.color = [1, 1, 1];
+      newLight.intensity = 1.0;
+      newLight.updateLocalMatrix();
+      scene.add(newLight);
+
+      // Select the newly added light
+      selectedObject = newLight;
+      previousSelectedUUID = newLight.uuid;
+      updateObjectProperties(newLight);
+      uiManager.selectObject(newLight.uuid);
+    }
+
     gl.useProgram(program);
     updateSceneGraph();
   } else if (type === "camera") {
@@ -918,18 +856,47 @@ document.getElementById("normal-file-input")?.addEventListener("change", async (
 
 // Handle delete from scene graph
 function deleteObjectFromScene(uuid: string) {
-  // Check if it's a mesh
-  for (let i = 0; i < scene.objects.length; i++) {
-    if (scene.objects[i].uuid === uuid) {
-      const mesh = scene.objects[i];
-      // Remove from scene
-      scene.objects.splice(i, 1);
-      // Remove from createdObjects
-      createdObjects.delete(uuid);
-      // Deselect if it was selected
-      if (selectedObject === mesh) {
-        selectedObject = null;
-        previousSelectedUUID = null;
+  const findNodeInScene = (nodes: SceneNode[], targetUuid: string): SceneNode | null => {
+    for (const node of nodes) {
+      if (node.uuid === targetUuid) return node;
+      const found = findNodeInScene(node.children, targetUuid);
+      if (found) return found;
+    }
+    return null;
+  };
+
+  const targetNode = findNodeInScene(scene.nodes, uuid);
+  if (!targetNode) return;
+
+  // Helper to recursively collect all descendant nodes
+  const collectDescendants = (node: SceneNode, collected: SceneNode[]) => {
+    collected.push(node);
+    for (const child of node.children) {
+      collectDescendants(child, collected);
+    }
+  };
+
+  const nodesToRemove: SceneNode[] = [];
+  collectDescendants(targetNode, nodesToRemove);
+
+  // Perform removal for each node in the hierarchy
+  for (const node of nodesToRemove) {
+    // Remove from SceneHierarchyManager
+    scene.remove(node);
+
+    // Remove from internal EditorApplication maps
+    createdObjects.delete(node.uuid);
+    if (lightInstances.has(node.uuid)) {
+      lightInstances.delete(node.uuid);
+    }
+
+    // Deselect if it was selected
+    if (selectedObject === node) {
+      selectedObject = null;
+      previousSelectedUUID = null;
+
+      // Clear viewport selection if it was a mesh
+      if (node instanceof RenderableMeshObject) {
         events.selectedObject = null;
         events.isObjectSelected = false;
         events.select = [];
@@ -938,46 +905,11 @@ function deleteObjectFromScene(uuid: string) {
           events.gizmo.removeFromScene(scene);
         }
       }
-      updateSceneGraph();
-      return;
     }
   }
 
-  // Check if it's a light
-  const lightMatch = uuid.match(/^(.+)_(point|spot|directional)_(\d+)$/);
-  if (lightMatch) {
-    const [, lightUuid, lightType, indexStr] = lightMatch;
-    const lightIndex = parseInt(indexStr, 10);
-
-    for (const lightInstance of scene.lights) {
-      if (lightInstance.uuid === lightUuid) {
-        if (lightType === "point" && lightInstance.lightData.point.position.length > lightIndex) {
-          lightInstance.lightData.point.position.splice(lightIndex, 1);
-          lightInstance.lightData.point.radius.splice(lightIndex, 1);
-          lightInstance.lightData.point.color.splice(lightIndex, 1);
-          lightInstance.lightData.point.intensity.splice(lightIndex, 1);
-        } else if (lightType === "spot" && lightInstance.lightData.spot.position.length > lightIndex) {
-          lightInstance.lightData.spot.position.splice(lightIndex, 1);
-          lightInstance.lightData.spot.direction.splice(lightIndex, 1);
-          lightInstance.lightData.spot.angle.splice(lightIndex, 1);
-          lightInstance.lightData.spot.color.splice(lightIndex, 1);
-          lightInstance.lightData.spot.intensity.splice(lightIndex, 1);
-        } else if (lightType === "directional" && lightInstance.lightData.directional.direction.length > lightIndex) {
-          lightInstance.lightData.directional.direction.splice(lightIndex, 1);
-          lightInstance.lightData.directional.color.splice(lightIndex, 1);
-          lightInstance.lightData.directional.intensity.splice(lightIndex, 1);
-        }
-
-        // Deselect if it was selected
-        if (selectedObject && selectedObject.uuid === uuid) {
-          selectedObject = null;
-          previousSelectedUUID = null;
-        }
-        updateSceneGraph();
-        return;
-      }
-    }
-  }
+  // Final UI update
+  updateSceneGraph();
 }
 
 // Add delete functionality to scene graph items
@@ -1098,181 +1030,85 @@ document.getElementById("camera-pos-z")?.addEventListener("input", (e) => {
 
 // Handle light property changes
 document.getElementById("light-pos-x")?.addEventListener("input", (e) => {
-  if (selectedObject && selectedObject.lightInstance && selectedObject.lightType && selectedObject.lightIndex !== undefined) {
+  if (selectedObject instanceof PointLightNode || selectedObject instanceof SpotLightNode) {
     const value = parseFloat((e.target as HTMLInputElement).value);
-    const lightInstance = selectedObject.lightInstance;
-    const lightType = selectedObject.lightType;
-    const index = selectedObject.lightIndex;
-
-    if (lightType === "point" && lightInstance.lightData.point.position[index]) {
-      lightInstance.lightData.point.position[index][0] = value;
-    } else if (lightType === "spot" && lightInstance.lightData.spot.position[index]) {
-      lightInstance.lightData.spot.position[index][0] = value;
-    } else if (lightType === "directional" && lightInstance.lightData.directional.direction[index]) {
-      lightInstance.lightData.directional.direction[index][0] = value;
-    }
+    selectedObject.position.x = value;
+    selectedObject.updateLocalMatrix();
   }
 });
 
 document.getElementById("light-pos-y")?.addEventListener("input", (e) => {
-  if (selectedObject && selectedObject.lightInstance && selectedObject.lightType && selectedObject.lightIndex !== undefined) {
+  if (selectedObject instanceof PointLightNode || selectedObject instanceof SpotLightNode) {
     const value = parseFloat((e.target as HTMLInputElement).value);
-    const lightInstance = selectedObject.lightInstance;
-    const lightType = selectedObject.lightType;
-    const index = selectedObject.lightIndex;
-
-    if (lightType === "point" && lightInstance.lightData.point.position[index]) {
-      lightInstance.lightData.point.position[index][1] = value;
-    } else if (lightType === "spot" && lightInstance.lightData.spot.position[index]) {
-      lightInstance.lightData.spot.position[index][1] = value;
-    } else if (lightType === "directional" && lightInstance.lightData.directional.direction[index]) {
-      lightInstance.lightData.directional.direction[index][1] = value;
-    }
+    selectedObject.position.y = value;
+    selectedObject.updateLocalMatrix();
   }
 });
 
 document.getElementById("light-pos-z")?.addEventListener("input", (e) => {
-  if (selectedObject && selectedObject.lightInstance && selectedObject.lightType && selectedObject.lightIndex !== undefined) {
+  if (selectedObject instanceof PointLightNode || selectedObject instanceof SpotLightNode) {
     const value = parseFloat((e.target as HTMLInputElement).value);
-    const lightInstance = selectedObject.lightInstance;
-    const lightType = selectedObject.lightType;
-    const index = selectedObject.lightIndex;
-
-    if (lightType === "point" && lightInstance.lightData.point.position[index]) {
-      lightInstance.lightData.point.position[index][2] = value;
-    } else if (lightType === "spot" && lightInstance.lightData.spot.position[index]) {
-      lightInstance.lightData.spot.position[index][2] = value;
-    } else if (lightType === "directional" && lightInstance.lightData.directional.direction[index]) {
-      lightInstance.lightData.directional.direction[index][2] = value;
-    }
+    selectedObject.position.z = value;
+    selectedObject.updateLocalMatrix();
   }
 });
 
 document.getElementById("light-color-input")?.addEventListener("input", (e) => {
-  if (selectedObject && selectedObject.lightInstance && selectedObject.lightType && selectedObject.lightIndex !== undefined) {
+  if (selectedObject instanceof PointLightNode || selectedObject instanceof SpotLightNode || selectedObject instanceof DirectionalLightNode) {
     const hex = (e.target as HTMLInputElement).value;
     const rgb = hexToRgb(hex);
     if (rgb) {
-      const color = [rgb.r / 255, rgb.g / 255, rgb.b / 255];
-      const lightInstance = selectedObject.lightInstance;
-      const lightType = selectedObject.lightType;
-      const index = selectedObject.lightIndex;
-
-      if (lightType === "point" && lightInstance.lightData.point.color[index]) {
-        lightInstance.lightData.point.color[index][0] = color[0];
-        lightInstance.lightData.point.color[index][1] = color[1];
-        lightInstance.lightData.point.color[index][2] = color[2];
-      } else if (lightType === "spot" && lightInstance.lightData.spot.color[index]) {
-        lightInstance.lightData.spot.color[index][0] = color[0];
-        lightInstance.lightData.spot.color[index][1] = color[1];
-        lightInstance.lightData.spot.color[index][2] = color[2];
-      } else if (lightType === "directional" && lightInstance.lightData.directional.color[index]) {
-        lightInstance.lightData.directional.color[index][0] = color[0];
-        lightInstance.lightData.directional.color[index][1] = color[1];
-        lightInstance.lightData.directional.color[index][2] = color[2];
-      }
-
+      selectedObject.color = [rgb.r / 255, rgb.g / 255, rgb.b / 255];
       (document.getElementById("light-color-swatch") as HTMLElement).style.backgroundColor = hex;
     }
   }
 });
 
-// Light color swatch click handler
-document.getElementById("light-color-swatch")?.addEventListener("click", () => {
-  document.getElementById("light-color-input")?.click();
-});
-
 document.getElementById("light-intensity-slider")?.addEventListener("input", (e) => {
-  if (selectedObject && selectedObject.lightInstance && selectedObject.lightType && selectedObject.lightIndex !== undefined) {
+  if (selectedObject instanceof PointLightNode || selectedObject instanceof SpotLightNode || selectedObject instanceof DirectionalLightNode) {
     const value = parseFloat((e.target as HTMLInputElement).value);
-    const lightInstance = selectedObject.lightInstance;
-    const lightType = selectedObject.lightType;
-    const index = selectedObject.lightIndex;
-
-    if (lightType === "point" && lightInstance.lightData.point.intensity[index] !== undefined) {
-      lightInstance.lightData.point.intensity[index] = value;
-    } else if (lightType === "spot" && lightInstance.lightData.spot.intensity[index] !== undefined) {
-      lightInstance.lightData.spot.intensity[index] = value;
-    } else if (lightType === "directional" && lightInstance.lightData.directional.intensity[index] !== undefined) {
-      lightInstance.lightData.directional.intensity[index] = value;
-    }
-
+    selectedObject.intensity = value;
     (document.getElementById("light-intensity-value") as HTMLElement).textContent = value.toFixed(1);
   }
 });
 
 // Handle light radius changes (Point Light)
 document.getElementById("light-radius-slider")?.addEventListener("input", (e) => {
-  if (selectedObject && selectedObject.lightInstance && selectedObject.lightType === "point" && selectedObject.lightIndex !== undefined) {
+  if (selectedObject instanceof PointLightNode) {
     const value = parseFloat((e.target as HTMLInputElement).value);
-    const lightInstance = selectedObject.lightInstance;
-    const index = selectedObject.lightIndex;
-
-    if (lightInstance.lightData.point.radius[index] !== undefined) {
-      lightInstance.lightData.point.radius[index] = value;
-      (document.getElementById("light-radius-value") as HTMLElement).textContent = value.toFixed(1);
-    }
+    selectedObject.radius = value;
+    (document.getElementById("light-radius-value") as HTMLElement).textContent = value.toFixed(1);
   }
 });
 
 // Handle light angle changes (Spot Light)
 document.getElementById("light-angle-slider")?.addEventListener("input", (e) => {
-  if (selectedObject && selectedObject.lightInstance && selectedObject.lightType === "spot" && selectedObject.lightIndex !== undefined) {
+  if (selectedObject instanceof SpotLightNode) {
     const valueDegrees = parseFloat((e.target as HTMLInputElement).value);
-    const valueRadians = (valueDegrees * Math.PI) / 180;
-    const lightInstance = selectedObject.lightInstance;
-    const index = selectedObject.lightIndex;
-
-    if (lightInstance.lightData.spot.angle[index] !== undefined) {
-      lightInstance.lightData.spot.angle[index] = valueRadians;
-      (document.getElementById("light-angle-value") as HTMLElement).textContent = Math.round(valueDegrees).toString();
-    }
+    selectedObject.angle = (valueDegrees * Math.PI) / 180;
+    (document.getElementById("light-angle-value") as HTMLElement).textContent = Math.round(valueDegrees).toString();
   }
 });
 
 // Handle light direction changes (Spot and Directional Lights)
 document.getElementById("light-dir-x")?.addEventListener("input", (e) => {
-  if (selectedObject && selectedObject.lightInstance && selectedObject.lightType && selectedObject.lightIndex !== undefined) {
+  if (selectedObject instanceof SpotLightNode || selectedObject instanceof DirectionalLightNode) {
     const value = parseFloat((e.target as HTMLInputElement).value);
-    const lightInstance = selectedObject.lightInstance;
-    const lightType = selectedObject.lightType;
-    const index = selectedObject.lightIndex;
-
-    if (lightType === "spot" && lightInstance.lightData.spot.direction[index]) {
-      lightInstance.lightData.spot.direction[index][0] = value;
-    } else if (lightType === "directional" && lightInstance.lightData.directional.direction[index]) {
-      lightInstance.lightData.directional.direction[index][0] = value;
-    }
+    selectedObject.direction[0] = value;
   }
 });
 
 document.getElementById("light-dir-y")?.addEventListener("input", (e) => {
-  if (selectedObject && selectedObject.lightInstance && selectedObject.lightType && selectedObject.lightIndex !== undefined) {
+  if (selectedObject instanceof SpotLightNode || selectedObject instanceof DirectionalLightNode) {
     const value = parseFloat((e.target as HTMLInputElement).value);
-    const lightInstance = selectedObject.lightInstance;
-    const lightType = selectedObject.lightType;
-    const index = selectedObject.lightIndex;
-
-    if (lightType === "spot" && lightInstance.lightData.spot.direction[index]) {
-      lightInstance.lightData.spot.direction[index][1] = value;
-    } else if (lightType === "directional" && lightInstance.lightData.directional.direction[index]) {
-      lightInstance.lightData.directional.direction[index][1] = value;
-    }
+    selectedObject.direction[1] = value;
   }
 });
 
 document.getElementById("light-dir-z")?.addEventListener("input", (e) => {
-  if (selectedObject && selectedObject.lightInstance && selectedObject.lightType && selectedObject.lightIndex !== undefined) {
+  if (selectedObject instanceof SpotLightNode || selectedObject instanceof DirectionalLightNode) {
     const value = parseFloat((e.target as HTMLInputElement).value);
-    const lightInstance = selectedObject.lightInstance;
-    const lightType = selectedObject.lightType;
-    const index = selectedObject.lightIndex;
-
-    if (lightType === "spot" && lightInstance.lightData.spot.direction[index]) {
-      lightInstance.lightData.spot.direction[index][2] = value;
-    } else if (lightType === "directional" && lightInstance.lightData.directional.direction[index]) {
-      lightInstance.lightData.directional.direction[index][2] = value;
-    }
+    selectedObject.direction[2] = value;
   }
 });
 
@@ -1323,7 +1159,7 @@ function animate() {
   } else if (previousSelectedUUID !== null) {
     // Viewport selection is empty. 
     // check if we have a "non-viewport" object selected (Camera or Light)
-    const isPickByTree = selectedObject && (selectedObject.lightInstance || selectedObject === camera);
+    const isPickByTree = selectedObject && (selectedObject instanceof LightNode || selectedObject === camera);
 
     if (!isPickByTree) {
       // Clear selection because viewport is empty and nothing special picked from tree

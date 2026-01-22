@@ -300,7 +300,37 @@
 
 .tree-item-icon {
     margin-right: 6px;
-    font-size: var(--font-size-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+}
+
+.tree-item-icon.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.dot-mesh { background-color: #a855f7; }
+.dot-light { background-color: #eab308; }
+.dot-camera { background-color: #ec4899; }
+.dot-default { background-color: #94a3b8; }
+
+.tree-item-toggle {
+    margin-right: 4px;
+    width: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: monospace;
+    font-size: 14px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.tree-item-toggle:hover {
+    color: var(--accent-primary);
 }
 
 .tree-item-label {

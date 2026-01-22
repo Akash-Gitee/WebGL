@@ -1,5 +1,9 @@
 import { mat4, vec3 } from "../../MathLibrary/gl-matrix";
 import { SceneLightingManager } from "../../LightingEngine/SceneLightingManager";
+import { LightNode } from "../../LightingEngine/LightNode";
+import { PointLightNode } from "../../LightingEngine/PointLightNode";
+import { SpotLightNode } from "../../LightingEngine/SpotLightNode";
+import { DirectionalLightNode } from "../../LightingEngine/DirectionalLightNode";
 import { CameraController } from "../../CameraSystem/CameraController";
 import { SphereGeometryBuilder } from "../../GeometryPrimitives/SphereGeometryBuilder";
 import { ConeGeometryBuilder } from "../../GeometryPrimitives/ConeGeometryBuilder";
@@ -166,27 +170,33 @@ export class WebGLRenderEngine {
     );
     return normalMap;
   }
-  setLightUniforms(program: WebGLProgram, light: SceneLightingManager): void {
+  setLightUniforms(program: WebGLProgram, lights: LightNode[], globalLight: any): void {
     const gl = this.gl;
     gl.useProgram(program);
 
+    // Default values
+    const defaultAmbient = new Float32Array([0.2, 0.2, 0.2]);
+    const defaultDiffuse = new Float32Array([1.0, 1.0, 1.0]);
+    const defaultSpecular = new Float32Array([1.0, 1.0, 1.0]);
+
     // Base light
-    if (light.lightData.baselight.ambient) {
-      gl.uniform3fv(
-        gl.getUniformLocation(program, "uAmbientLightColor"),
-        light.lightData.baselight.ambient
-      );
-      gl.uniform3fv(
-        gl.getUniformLocation(program, "uDiffuseLightColor"),
-        light.lightData.baselight.diffuse ?? new Float32Array([0, 0, 0])
-      );
-      gl.uniform3fv(
-        gl.getUniformLocation(program, "uSpecularLightColor"),
-        light.lightData.baselight.specular ?? new Float32Array([0, 0, 0])
-      );
+    if (globalLight && globalLight.lightData && globalLight.lightData.baselight) {
+      const baselight = globalLight.lightData.baselight;
+      gl.uniform3fv(gl.getUniformLocation(program, "uAmbientLightColor"), baselight.ambient || defaultAmbient);
+      gl.uniform3fv(gl.getUniformLocation(program, "uDiffuseLightColor"), baselight.diffuse || defaultDiffuse);
+      gl.uniform3fv(gl.getUniformLocation(program, "uSpecularLightColor"), baselight.specular || defaultSpecular);
+    } else {
+      gl.uniform3fv(gl.getUniformLocation(program, "uAmbientLightColor"), defaultAmbient);
+      gl.uniform3fv(gl.getUniformLocation(program, "uDiffuseLightColor"), defaultDiffuse);
+      gl.uniform3fv(gl.getUniformLocation(program, "uSpecularLightColor"), defaultSpecular);
     }
 
     const MAX_LIGHTS = 10;
+
+    // Categorize lights
+    const pointLights = lights.filter(l => l instanceof PointLightNode) as PointLightNode[];
+    const spotLights = lights.filter(l => l instanceof SpotLightNode) as SpotLightNode[];
+    const directionalLights = lights.filter(l => l instanceof DirectionalLightNode) as DirectionalLightNode[];
 
     // Point lights
     for (let i = 0; i < MAX_LIGHTS; i++) {
@@ -195,11 +205,12 @@ export class WebGLRenderEngine {
       const colorLoc = gl.getUniformLocation(program, `uPointLightColor[${i}]`);
       const intensityLoc = gl.getUniformLocation(program, `uPointLightIntensity[${i}]`);
 
-      if (i < light.lightData.point.position.length) {
-        if (posLoc) gl.uniform3fv(posLoc, light.lightData.point.position[i]);
-        if (radiusLoc) gl.uniform1f(radiusLoc, light.lightData.point.radius[i]);
-        if (colorLoc) gl.uniform3fv(colorLoc, light.lightData.point.color[i]);
-        if (intensityLoc) gl.uniform1f(intensityLoc, light.lightData.point.intensity[i]);
+      if (i < pointLights.length) {
+        const light = pointLights[i];
+        if (posLoc) gl.uniform3fv(posLoc, new Float32Array([light.position.x, light.position.y, light.position.z]));
+        if (radiusLoc) gl.uniform1f(radiusLoc, light.radius);
+        if (colorLoc) gl.uniform3fv(colorLoc, new Float32Array(light.color));
+        if (intensityLoc) gl.uniform1f(intensityLoc, light.intensity);
       } else {
         if (posLoc) gl.uniform3fv(posLoc, new Float32Array([0, 0, 0]));
         if (radiusLoc) gl.uniform1f(radiusLoc, 0.0);
@@ -216,12 +227,13 @@ export class WebGLRenderEngine {
       const colorLoc = gl.getUniformLocation(program, `uSpotLightColor[${i}]`);
       const intensityLoc = gl.getUniformLocation(program, `uSpotLightIntensity[${i}]`);
 
-      if (i < light.lightData.spot.position.length) {
-        if (posLoc) gl.uniform3fv(posLoc, light.lightData.spot.position[i]);
-        if (dirLoc) gl.uniform3fv(dirLoc, light.lightData.spot.direction[i]);
-        if (angleLoc) gl.uniform1f(angleLoc, light.lightData.spot.angle[i]);
-        if (colorLoc) gl.uniform3fv(colorLoc, light.lightData.spot.color[i]);
-        if (intensityLoc) gl.uniform1f(intensityLoc, light.lightData.spot.intensity[i]);
+      if (i < spotLights.length) {
+        const light = spotLights[i];
+        if (posLoc) gl.uniform3fv(posLoc, new Float32Array([light.position.x, light.position.y, light.position.z]));
+        if (dirLoc) gl.uniform3fv(dirLoc, new Float32Array(light.direction));
+        if (angleLoc) gl.uniform1f(angleLoc, light.angle);
+        if (colorLoc) gl.uniform3fv(colorLoc, new Float32Array(light.color));
+        if (intensityLoc) gl.uniform1f(intensityLoc, light.intensity);
       } else {
         if (posLoc) gl.uniform3fv(posLoc, new Float32Array([0, 0, 0]));
         if (dirLoc) gl.uniform3fv(dirLoc, new Float32Array([0, 0, 1]));
@@ -237,10 +249,11 @@ export class WebGLRenderEngine {
       const colorLoc = gl.getUniformLocation(program, `uDirectionalLightColor[${i}]`);
       const intensityLoc = gl.getUniformLocation(program, `uDirectionalLightIntensity[${i}]`);
 
-      if (i < light.lightData.directional.direction.length) {
-        if (dirLoc) gl.uniform3fv(dirLoc, light.lightData.directional.direction[i]);
-        if (colorLoc) gl.uniform3fv(colorLoc, light.lightData.directional.color[i]);
-        if (intensityLoc) gl.uniform1f(intensityLoc, light.lightData.directional.intensity[i]);
+      if (i < directionalLights.length) {
+        const light = directionalLights[i];
+        if (dirLoc) gl.uniform3fv(dirLoc, new Float32Array(light.direction));
+        if (colorLoc) gl.uniform3fv(colorLoc, new Float32Array(light.color));
+        if (intensityLoc) gl.uniform1f(intensityLoc, light.intensity);
       } else {
         if (dirLoc) gl.uniform3fv(dirLoc, new Float32Array([0, 0, 1]));
         if (colorLoc) gl.uniform3fv(colorLoc, new Float32Array([0, 0, 0]));
@@ -651,7 +664,7 @@ export class WebGLRenderEngine {
     const viewProjectionMatrix = camera.viewProjectionMatrix;
     const frustumPlanes = extractFrustumPlanes(viewProjectionMatrix);
 
-    this.setLightUniformsBatch(program, scene?.lights);
+    this.setLightUniformsBatch(program, scene);
 
     // Separate gizmo meshes from regular objects
     const regularObjects = (scene?.objects || []).filter(
@@ -777,8 +790,8 @@ export class WebGLRenderEngine {
     this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
   }
 
-  setLightUniformsBatch(program: WebGLProgram, lights: any[]): void {
-    if (!lights) return;
-    lights.forEach((light) => this.setLightUniforms(program, light));
+  setLightUniformsBatch(program: WebGLProgram, scene: any): void {
+    if (!scene) return;
+    this.setLightUniforms(program, scene.lights || [], scene.globalLight);
   }
 }

@@ -731,7 +731,7 @@ export class GLTFSceneExporter {
           normalMap: object.normalMap ?? null,
           normalMapImage: object.normalMapImage ?? null,
           normalMapURL: (object as any).normalMapURL ?? null,
-          localMatrix: object.modelMatrix ?? [],
+          localMatrix: object.localMatrix ?? [],
           parent: null,
         };
 

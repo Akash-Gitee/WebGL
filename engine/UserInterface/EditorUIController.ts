@@ -31,9 +31,11 @@ export class EditorUIController {
     private onObjectSelectCallback?: (uuid: string) => void;
     private onTextureSelectCallback?: (type: 'texture' | 'normal', url: string) => void;
     private onGridChangeCallback?: (settings: { visible: boolean; size: number; spacing: number }) => void;
+    private onNodeReparentCallback?: (childUuid: string, parentUuid: string | null) => void;
 
     // Selected object tracking
     private selectedObjectUUID: string | null = null;
+    private collapsedNodes: Set<string> = new Set();
 
     constructor() {
         this.initializeElements();
@@ -489,6 +491,10 @@ export class EditorUIController {
         this.onGridChangeCallback = callback;
     }
 
+    public onNodeReparent(callback: (childUuid: string, parentUuid: string | null) => void): void {
+        this.onNodeReparentCallback = callback;
+    }
+
     public updateObjectProperties(object: any): void {
         // Update selected UUID
         this.selectedObjectUUID = object.uuid;
@@ -566,20 +572,75 @@ export class EditorUIController {
 
         sceneTree.innerHTML = '';
 
+        // Add a drop zone for the whole tree to allow reparenting to root
+        sceneTree.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        sceneTree.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const dragEvent = e as DragEvent;
+            if (dragEvent.dataTransfer) {
+                const draggedUuid = dragEvent.dataTransfer.getData('text/plain');
+                if (draggedUuid && this.onNodeReparentCallback) {
+                    this.onNodeReparentCallback(draggedUuid, null);
+                }
+            }
+        });
+
         sceneObjects.forEach((obj) => {
-            this.createTreeItem(obj, sceneTree, 0);
+            const isGizmo = obj.isGizmoPart || (obj.type && obj.type.startsWith('Gizmo-'));
+            if (!isGizmo) {
+                this.createTreeItem(obj, sceneTree, 0);
+            }
         });
     }
 
     private createTreeItem(obj: any, parentElement: HTMLElement, depth: number): void {
+        const isGizmo = obj.isGizmoPart || (obj.type && obj.type.startsWith('Gizmo-'));
+        if (isGizmo) return;
+
         const li = document.createElement('li');
         li.className = 'tree-item';
         li.dataset.uuid = obj.uuid;
 
-        // Add indentation for child objects
+        // Container for better alignment
+        const content = document.createElement('div');
+        content.style.display = 'flex';
+        content.style.alignItems = 'center';
+        content.style.width = '100%';
+
+        // Add indentation
         if (depth > 0) {
-            li.style.paddingLeft = `${depth * 20}px`;
+            content.style.paddingLeft = `${depth * 20}px`;
         }
+
+        // Toggle icon for parents
+        const hasChildren = obj.children && obj.children.length > 0;
+        const toggle = document.createElement('span');
+        toggle.className = 'tree-item-toggle';
+        if (hasChildren) {
+            const isCollapsed = this.collapsedNodes.has(obj.uuid);
+            toggle.textContent = isCollapsed ? '+' : '−';
+            toggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.collapsedNodes.has(obj.uuid)) {
+                    this.collapsedNodes.delete(obj.uuid);
+                } else {
+                    this.collapsedNodes.add(obj.uuid);
+                }
+                // Refresh the whole graph or just this subtree? Prefer full refresh for simplicity
+                // but usually we just toggle visibility of childrenContainer
+                const childrenContainer = li.nextElementSibling as HTMLElement;
+                if (childrenContainer && childrenContainer.classList.contains('tree-item-children')) {
+                    const collapsed = this.collapsedNodes.has(obj.uuid);
+                    childrenContainer.style.display = collapsed ? 'none' : 'block';
+                    toggle.textContent = collapsed ? '+' : '−';
+                }
+            });
+        }
+        content.appendChild(toggle);
 
         // Highlight if selected
         if (obj.uuid === this.selectedObjectUUID) {
@@ -587,20 +648,68 @@ export class EditorUIController {
         }
 
         const icon = document.createElement('span');
-        icon.className = 'tree-item-icon';
-        icon.textContent = this.getObjectIcon(obj.type);
+        icon.className = `tree-item-icon dot ${this.getObjectIconClass(obj.type)}`;
 
         const label = document.createElement('span');
         label.className = 'tree-item-label';
         label.textContent = obj.name || obj.type || 'Object';
 
-        li.appendChild(icon);
-        li.appendChild(label);
+        content.appendChild(icon);
+        content.appendChild(label);
+        li.appendChild(content);
 
         // Add click handler for selection
         li.addEventListener('click', (e) => {
             e.stopPropagation();
             this.selectObject(obj.uuid);
+        });
+
+        // Drag and Drop Logic
+        li.draggable = true;
+
+        li.addEventListener('dragstart', (e) => {
+            e.stopPropagation();
+            const dragEvent = e as DragEvent;
+            if (dragEvent.dataTransfer) {
+                dragEvent.dataTransfer.setData('text/plain', obj.uuid);
+                dragEvent.dataTransfer.effectAllowed = 'move';
+                li.classList.add('dragging');
+            }
+        });
+
+        li.addEventListener('dragend', (e) => {
+            li.classList.remove('dragging');
+            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        });
+
+        li.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const dragEvent = e as DragEvent;
+            if (dragEvent.dataTransfer) {
+                dragEvent.dataTransfer.dropEffect = 'move';
+            }
+            li.classList.add('drag-over');
+        });
+
+        li.addEventListener('dragleave', (e) => {
+            li.classList.remove('drag-over');
+        });
+
+        li.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            li.classList.remove('drag-over');
+
+            const dragEvent = e as DragEvent;
+            if (dragEvent.dataTransfer) {
+                const draggedUuid = dragEvent.dataTransfer.getData('text/plain');
+                if (draggedUuid && draggedUuid !== obj.uuid) {
+                    if (this.onNodeReparentCallback) {
+                        this.onNodeReparentCallback(draggedUuid, obj.uuid);
+                    }
+                }
+            }
         });
 
         parentElement.appendChild(li);
@@ -609,6 +718,9 @@ export class EditorUIController {
         if (obj.children && obj.children.length > 0) {
             const childrenContainer = document.createElement('ul');
             childrenContainer.className = 'tree-item-children';
+            const isCollapsed = this.collapsedNodes.has(obj.uuid);
+            childrenContainer.style.display = isCollapsed ? 'none' : 'block';
+
             obj.children.forEach((child: any) => {
                 this.createTreeItem(child, childrenContainer, depth + 1);
             });
@@ -635,17 +747,12 @@ export class EditorUIController {
         }
     }
 
-    private getObjectIcon(type: string): string {
-        const icons: { [key: string]: string } = {
-            'Mesh': '📦',
-            'Camera': '📷',
-            'Light': '💡',
-            'PointLight': '💡',
-            'SpotLight': '🔦',
-            'DirectionalLight': '☀️',
-            'Grid': '⊞',
-        };
-        return icons[type] || '⬚';
+    private getObjectIconClass(type: string): string {
+        const typeStr = type.toLowerCase();
+        if (typeStr.includes('mesh')) return 'dot-mesh';
+        if (typeStr.includes('light')) return 'dot-light';
+        if (typeStr.includes('camera')) return 'dot-camera';
+        return 'dot-default';
     }
 
     public getCurrentTool(): string {

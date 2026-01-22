@@ -55,8 +55,9 @@ interface SelectableObjectType {
   rotate: { x: number; y: number; z: number };
   uuid?: string;
   type?: string;
-  modelMatrix: number[];
+  worldMatrix: any; // Changed from modelMatrix
   updateTranslate: () => void;
+  updateLocalMatrix: () => void; // Added for new hierarchy system
   updateScale: () => void;
   ObjectRotation: () => void;
 }
@@ -261,8 +262,7 @@ export class SceneInteractionHandler {
 
           if (this.gizmo) {
             this.gizmo.visible = true;
-            this.gizmo.position = { ...clickedObject.position };
-            this.gizmo.updateLocalMatrix();
+            this.updateGizmoPosition(clickedObject);
             if (!this.gizmo.gizmoMeshes.length) {
               this.gizmo.addToScene(this.scene);
             }
@@ -895,22 +895,19 @@ export class SceneInteractionHandler {
     this.updateInputValue("posZ", obj.position.z.toFixed(2));
     this.setInputHandler("posX", (value) => {
       obj.position.x = parseFloat(value);
-      obj.modelMatrix[12] = obj.position.x * 3;
-      obj.updateTranslate();
+      obj.updateLocalMatrix();
       this.objectPivotPosition.x = obj.position.x;
       this.updateGizmoPosition(obj);
     });
     this.setInputHandler("posY", (value) => {
       obj.position.y = parseFloat(value);
-      obj.modelMatrix[13] = obj.position.y * 3;
-      obj.updateTranslate();
+      obj.updateLocalMatrix();
       this.objectPivotPosition.y = obj.position.y;
       this.updateGizmoPosition(obj);
     });
     this.setInputHandler("posZ", (value) => {
       obj.position.z = parseFloat(value);
-      obj.modelMatrix[14] = obj.position.z * 3;
-      obj.updateTranslate();
+      obj.updateLocalMatrix();
       this.objectPivotPosition.z = obj.position.z;
       this.updateGizmoPosition(obj);
     });
@@ -965,10 +962,11 @@ export class SceneInteractionHandler {
     }
   }
   updateGizmoPosition(obj: SelectableObjectType): void {
-    if (this.gizmo) {
-      this.gizmo.position.x = obj.position.x;
-      this.gizmo.position.y = obj.position.y;
-      this.gizmo.position.z = obj.position.z;
+    if (this.gizmo && obj.worldMatrix) {
+      // Extract world position from world matrix (elements 12, 13, 14)
+      this.gizmo.position.x = obj.worldMatrix[12];
+      this.gizmo.position.y = obj.worldMatrix[13];
+      this.gizmo.position.z = obj.worldMatrix[14];
       this.gizmo.updateLocalMatrix();
     }
   }
@@ -1142,10 +1140,7 @@ export class SceneInteractionHandler {
     this.objectPivotPosition.y = this.selectedObject.position.y;
     this.objectPivotPosition.z = this.selectedObject.position.z;
     if (this.gizmo) {
-      this.gizmo.position.x = this.selectedObject.position.x;
-      this.gizmo.position.y = this.selectedObject.position.y;
-      this.gizmo.position.z = this.selectedObject.position.z;
-      this.gizmo.updateLocalMatrix();
+      this.updateGizmoPosition(this.selectedObject);
     }
   }
   handleRotation(event: PointerEvent): void {
@@ -1184,7 +1179,7 @@ export class SceneInteractionHandler {
     this.selectedObject.updateTranslate();
 
     if (this.gizmo) {
-      this.gizmo.updateLocalMatrix();
+      this.updateGizmoPosition(this.selectedObject);
     }
   }
 
@@ -1236,19 +1231,12 @@ export class SceneInteractionHandler {
     this.selectedObject.updateScale();
 
     if (this.gizmo) {
-      this.gizmo.updateLocalMatrix();
+      this.updateGizmoPosition(this.selectedObject);
     }
   }
   controlEvent(): number[] {
     if (this.isObjectSelected && this.selectedObject && this.gizmo) {
-      if (!this.gizmo.visible) {
-        this.gizmo.position = this.selectedObject.position;
-        this.gizmo.updateLocalMatrix();
-      }
-      if (this.gizmo.visible && this.selectedObject) {
-        this.gizmo.position = this.selectedObject.position;
-        this.gizmo.updateLocalMatrix();
-      }
+      this.updateGizmoPosition(this.selectedObject);
     }
     const cameraAngleX = ((this.rotationX * this.sensitivity) / 180) * Math.PI;
     const cameraAngleY = ((this.rotationY * this.sensitivity) / 180) * Math.PI;
